@@ -1,0 +1,65 @@
+ping
+  01 <msg>
+
+ping reply
+  41 <msg>
+
+
+flow open
+  10 <vlu flowID> <UTF8 metadata>
+  30 <vlu flowID> <vlu returnAssoc> <UTF8 metadata>
+
+user data
+  1d <vlu flowID> <msg>  // last frag
+  3d <vlu flowID> <msg>  // more frags coming
+
+abandon message
+  1a <vlu flowID> [<vlu abandonCountMinusOne>]
+
+flow close
+  1c <vlu flowID>
+
+
+receive data ack
+  5a <vlu flowID> <vlu position> <vlu bufferAdvertisement>
+
+receive flow close ack
+  5c <vlu flowID>
+
+receive flow exception
+  5e <vlu flowID> [<vlu reasonCode> [<UTF8 description>]]
+
+
+----
+vlu: see https://tools.ietf.org/html/rfc7016#section-2.1.2
+
+on ping:
+  send ping reply immediately.
+
+on flow open:
+  reject if flow ID already in use.
+
+on flow open with return association:
+  reject if return assoc is not open.
+
+flow data messages:
+  each message is zero or more 3d "more frags coming" fragments and one 1d "last frag" fragment.
+
+sending data acks:
+  not more than 250ms after receiving any user data.
+  immediately after receiving at least 2800(?) bytes across all flows.
+  immediately on flow open.
+  send all pending acks at once.
+  position is count of bytes in user data messages including headers.
+
+on flow close:
+  send ack, then flow close ack, recv flowID immediately no longer valid/in use.
+
+on flow close ack:
+  send flowID no longer valid/in use.
+
+on abandon message:
+  incomplete received message is abandoned & removed, countMinusOne
+    includes this message.
+  if no incomplete & unabandoned message being assembled, countMinusOne + 1 is
+    count of never sent messages.
