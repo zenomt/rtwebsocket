@@ -202,7 +202,7 @@ interface RTWebSocket {
 };
 </pre>
 
-<h3><a href="Section-WriteReceipt"></a>WriteReceipt</h3>
+<h3><a name="Section-WriteReceipt"></a>WriteReceipt</h3>
 
 <pre>
 <a name="WriteReceipt"></a>interface WriteReceipt {
