@@ -22,7 +22,7 @@ Features of the reference implementations:
 
 The protocol is described in [protocol](protocol).
 
-Web IDL documentation for the reference implementation is in [rtws.html](rtws.html).
+Web IDL documentation for the reference implementation is in [API.md](API.md).
 
 # License
 Licensed under the Apache License, Version 2.0.
