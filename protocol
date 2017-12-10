@@ -5,6 +5,10 @@ ping reply
   41 <msg>
 
 
+set ack window
+  0a <vlu ackWindow>
+
+
 flow open
   10 <vlu flowID> <UTF8 metadata>
   30 <vlu flowID> <vlu returnAssoc> <UTF8 metadata>
@@ -47,7 +51,9 @@ flow data messages:
 
 sending data acks:
   not more than 250ms after receiving any user data.
-  immediately after receiving at least 2800(?) bytes across all flows.
+  immediately after receiving at least N*ack-window bytes since last set ack window.
+    (initial ack-window is 2800 bytes)
+  immediately after receiving at least (last advertised buffer)/2 bytes on this flow.
   immediately on flow open.
   send all pending acks at once.
   position is count of bytes in user data messages including headers.

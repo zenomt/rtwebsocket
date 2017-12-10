@@ -28,6 +28,7 @@ function RTWebSocket(url) {
 	this._ackNow = false;
 	this._sendNow = false;
 	this._recvAccumulator = 0;
+	this._ackWindow = this.minAckWindow;
 	this._nextSendFlowID = 0;
 	this._delackInterval = setInterval(this._intervalWork.bind(this), 250);
 	this._sentBytesAccumulator = 0;
@@ -49,7 +50,7 @@ function RTWebSocket(url) {
 }
 
 RTWebSocket.prototype.chunkSize  = 1400;
-RTWebSocket.prototype.ackThresh  = 1400*2;
+RTWebSocket.prototype.minAckWindow  = 1400*2;
 RTWebSocket.prototype.sendThresh = 1400*16;
 RTWebSocket.prototype.rttHistoryThresh = 60;
 RTWebSocket.prototype.rttHistoryCapacity = 5;
@@ -119,6 +120,7 @@ RTWebSocket.prototype.onclose = function(sender) { console.log("RTWebSocket oncl
 
 RTWebSocket.MSG_PING              = 0x01;
 RTWebSocket.MSG_PING_REPLY        = 0x41;
+RTWebSocket.MSG_ACK_WINDOW        = 0x0a;
 RTWebSocket.MSG_FLOW_OPEN         = 0x10;
 RTWebSocket.MSG_FLOW_OPEN_RETURN  = 0x30;
 RTWebSocket.MSG_DATA_LAST         = 0x1d;
@@ -200,6 +202,10 @@ RTWebSocket.prototype._onWSMessage = function(e) {
 			case RTWebSocket.MSG_PING_REPLY:
 				this._onPingReplyMessage(data);
 				break;
+
+			case RTWebSocket.MSG_ACK_WINDOW:
+				this._onAckWindowMessage(data);
+				break;
 	
 			case RTWebSocket.MSG_FLOW_OPEN:
 			case RTWebSocket.MSG_FLOW_OPEN_RETURN:
@@ -245,6 +251,16 @@ RTWebSocket.prototype._onPingMessage = function(data) {
 
 RTWebSocket.prototype._onPingReplyMessage = function(data) {
 	console.log("onPingReplyMessage", data);
+}
+
+RTWebSocket.prototype._onAckWindowMessage = function(data) {
+	var ackWindow = {};
+	var cursor = 1;
+
+	cursor += this.parseVLU(data, cursor, -1, ackWindow);
+
+	this._ackWindow = Math.max(ackWindow.value, this.minAckWindow);
+	this._recvAccumulator = 0;
 }
 
 RTWebSocket.prototype._onFlowOpenMessage = function(data) {
@@ -313,8 +329,11 @@ RTWebSocket.prototype._onDataMessage = function(data) {
 		throw new ReferenceError("RecvFlow (" + flowID.value + ") not found for message fragment");
 
 	this._recvAccumulator += data.length;
-	if(this._recvAccumulator >= this.ackThresh)
+	if(this._recvAccumulator >= this._ackWindow)
+	{
 		this._scheduleAckNow();
+		this._recvAccumulator = this._recvAccumulator % this._ackWindow;
+	}
 
 	recvFlow._onData(more, msgFragment, data.length);
 }
@@ -421,7 +440,6 @@ RTWebSocket.prototype._sendAcks = function() {
 	while((recvFlow = this._ackFlows.shift())) {
 		recvFlow._sendAck();
 	}
-	this._recvAccumulator = 0;
 }
 
 RTWebSocket.prototype._queueTransmission = function(sendFlow) {
@@ -469,6 +487,11 @@ RTWebSocket.prototype._startRTT = function() {
 	{
 		this._rttAnchor = RTWebSocket._now();
 		this._rttPosition = this._flowBytesSent;
+
+		var ackWin = Math.max(this.minAckWindow, (this._flowBytesSent - this._flowBytesAcked) / 4);
+		ackWin = Math.min(ackWin, this.sendThresh / 2);
+
+		this._sendBytes([RTWebSocket.MSG_ACK_WINDOW].concat(this.makeVLU(ackWin)));
 	}
 }
 
@@ -485,7 +508,7 @@ RTWebSocket.prototype._measureRTT = function() {
 
 		this._addRTT(rtt);
 
-		if(numBytes >= this.outstandingThresh - this.ackThresh)
+		if(numBytes >= this.outstandingThresh - this.minAckWindow)
 		{
 			this.outstandingThresh = Math.max(
 				this.minOutstandingThresh,
@@ -1043,6 +1066,7 @@ function RecvFlow(owner, flowID, metadata, associatedSendFlow) {
 	this._receiveBuffer = [];
 	this._receiveBufferByteLength = 0;
 	this._receivedByteCount = 0;
+	this._ackThresh = 0;
 	this._complete = false;
 	this._sentComplete = false;
 	this._sentCloseAck = false;
@@ -1153,7 +1177,7 @@ RecvFlow.prototype._sendAck = function() {
 		return;
 
 	var advertisement = this.advertisement;
-	var windowEnd = this._receivedByteCount + advertisement;
+	this._ackThresh = this._receivedByteCount + (advertisement / 2);
 
 	var bytes = [RTWebSocket.MSG_DATA_ACK]
 		.concat(VLU.makeVLU(this._flowID))
@@ -1190,7 +1214,7 @@ RecvFlow.prototype._onData = function(more, msgFragment, chunkLength) {
 	if(message.complete)
 		this._queueDelivery();
 
-	this._queueAck();
+	this._queueAck(this._receivedByteCount >= this._ackThresh);
 }
 
 RecvFlow.prototype._onDataAbandon = function(countMinusOne) {

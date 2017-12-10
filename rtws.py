@@ -19,6 +19,7 @@ import traceback
 
 MSG_PING = 0x01
 MSG_PING_REPLY = 0x41
+MSG_ACK_WINDOW = 0x0a
 MSG_FLOW_OPEN = 0x10
 MSG_FLOW_OPEN_RETURN = 0x30
 MSG_DATA_LAST = 0x1d
@@ -64,8 +65,8 @@ class IWebSocketAdapter(object):
 
 class RTWebSocket(object):
 	chunkSize  = 1400
-	ackThresh  = 1400*2
-	sendThresh = 1400*32
+	minAckWindow = 1400*2
+	sendThresh = 1400*16
 	defaultRcvbuf = 2097151
 	rttHistoryThresh = 60
 	rttHistoryCapacity = 5
@@ -86,6 +87,7 @@ class RTWebSocket(object):
 		self._ackNow = False
 		self._sendNow = False
 		self._recvAccumulator = 0
+		self._ackWindow = self.minAckWindow
 		self._nextSendFlowID = 0
 		self._isOpen = True
 		self._sentBytesAccumulator = 0
@@ -165,6 +167,8 @@ class RTWebSocket(object):
 				self._onDataAckMessage(message)
 			elif code in [MSG_FLOW_OPEN, MSG_FLOW_OPEN_RETURN]:
 				self._onFlowOpenMessage(message)
+			elif MSG_ACK_WINDOW == code:
+				self._onAckWindowMessage(message)
 			elif MSG_DATA_ABANDON == code:
 				self._onDataAbandonMessage(message)
 			elif MSG_FLOW_CLOSE == code:
@@ -270,6 +274,11 @@ class RTWebSocket(object):
 			self._rttAnchor = time.time()
 			self._rttPosition = self._flowBytesSent
 
+			ackWin = max(self.minAckWindow, (self._flowBytesSent - self._flowBytesAcked) / 4)
+			ackWin = long(min(ackWin, self.sendThresh / 2))
+
+			self._sendBytes(chr(MSG_ACK_WINDOW) + makeVLU(ackWin))
+
 	def _measureRTT(self):
 		if (self._rttAnchor is not None) and (self._flowBytesAcked >= self._rttPosition):
 			now = time.time()
@@ -282,7 +291,7 @@ class RTWebSocket(object):
 
 			self._addRTT(now, rtt)
 
-			if numBytes >= self.outstandingThresh - self.ackThresh:
+			if numBytes >= self.outstandingThresh - self.minAckWindow:
 				self.outstandingThresh = max(self.minOutstandingThresh,
 					bandwidth * (self.baseRTT + self.maxAdditionalDelay))
 
@@ -319,7 +328,6 @@ class RTWebSocket(object):
 		self._ackNow = False
 		while len(self._ackFlows):
 			self._ackFlows.pop()._sendAck()
-		self._recvAccumulator = 0
 
 	def _sendPing(self):
 		self._sendBytes(chr(MSG_PING) + "ping!")
@@ -333,6 +341,11 @@ class RTWebSocket(object):
 
 	def _onPingReplyMessage(self, message):
 		print "_onPingReply", message[1:]
+
+	def _onAckWindowMessage(self, message):
+		cursor, ackWindow = parseVLU(message, 1)
+		self._ackWindow = max(ackWindow, self.minAckWindow)
+		self._recvAccumulator = 0
 
 	def _onFlowOpenMessage(self, message):
 		hasReturnAssociation = (MSG_FLOW_OPEN_RETURN == message[0])
@@ -377,8 +390,9 @@ class RTWebSocket(object):
 		recvFlow = self._recvFlowsByID[flowID]
 
 		self._recvAccumulator += len(message)
-		if self._recvAccumulator >= self.ackThresh:
+		if self._recvAccumulator >= self._ackWindow:
 			self._scheduleAckNow()
+			self._recvAccumulator = self._recvAccumulator % self._ackWindow
 
 		recvFlow._onData(more, msgFragment, len(message))
 
@@ -677,6 +691,7 @@ class RecvFlow(object):
 		self._receiveBuffer = deque()
 		self._receiveBufferByteLength = 0
 		self._receivedByteCount = 0
+		self._ackThresh = 0
 		self._complete = False
 		self._sentComplete = False
 		self._sentCloseAck = False
@@ -775,8 +790,11 @@ class RecvFlow(object):
 		if self._sentCloseAck:
 			return
 
+		advertisement = self.advertisement
+		self._ackThresh = self._receivedByteCount + (advertisement / 2)
+
 		message = chr(MSG_DATA_ACK) + makeVLU(self._flowID) + \
-			makeVLU(self._receivedByteCount) + makeVLU(self.advertisement)
+			makeVLU(self._receivedByteCount) + makeVLU(advertisement)
 		self._owner._sendBytes(message)
 
 		if self._complete:
@@ -803,7 +821,7 @@ class RecvFlow(object):
 		if message.complete:
 			self._queueDelivery()
 
-		self._queueAck()
+		self._queueAck(self._receivedByteCount >= self._ackThresh)
 
 	def _onDataAbandon(self, countMinusOne):
 		count = countMinusOne + 1
