@@ -3,7 +3,7 @@ RTWebSocket
 
 RTWebSocket is a simple protocol, inspired by [RTMFP (RFC 7016)][rfc7016],
 that multiplexes prioritized message flows over a [WebSocket][rfc6455]
-connection. Reference implementations are provided in Javascript and Python (so far).
+connection. Reference implementations are provided in JavaScript and Python (so far).
 
 Protocol features include:
 
