@@ -1,6 +1,8 @@
-# RTWebSocket
-RTWebSocket is a simple protocol, inspired by [RTMFP (RFC 7016)](https://tools.ietf.org/html/rfc7016),
-that multiplexes prioritized message flows over a [WebSocket](https://tools.ietf.org/html/rfc6455)
+RTWebSocket
+===========
+
+RTWebSocket is a simple protocol, inspired by [RTMFP (RFC 7016)][rfc7016],
+that multiplexes prioritized message flows over a [WebSocket][rfc6455]
 connection. Reference implementations are provided in Javascript and Python (so far).
 
 Protocol features include:
@@ -15,14 +17,23 @@ Features of the reference implementations:
 
   - A message can be given an expiration time when queued, after which it is automatically abandoned
   - Queuing a message returns a `WriteReceipt` that can be used to track delivery and manually abandon the message
-  - [Bufferbloat](https://www.bufferbloat.net/projects/) mitigation
+  - [Bufferbloat][] mitigation
   - A new incoming return flow arrives as a callback on the flow to which it is associated
   - Flow priority/precedence can be changed on the fly
   - The receiver can suspend message delivery per-flow
 
-The protocol is described in [protocol](protocol).
+The protocol is described in [protocol][].
 
-Web IDL documentation for the reference implementation is in [API.md](API.md).
+Web IDL documentation for the reference implementation is in [API.md][].
 
-# License
+License
+=======
+
 Licensed under the Apache License, Version 2.0.
+
+
+  [rfc7016]:     https://tools.ietf.org/html/rfc7016
+  [rfc6455]:     https://tools.ietf.org/html/rfc6455
+  [Bufferbloat]: https://www.bufferbloat.net/projects/
+  [API.md]:      API.md
+  [protocol]:    protocol
