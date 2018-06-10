@@ -54,9 +54,9 @@ RTWebSocket.prototype.minAckWindow  = 1400*2;
 RTWebSocket.prototype.sendThresh = 1400*16;
 RTWebSocket.prototype.rttHistoryThresh = 60;
 RTWebSocket.prototype.rttHistoryCapacity = 5;
-RTWebSocket.prototype.minOutstandingThresh = 1024*16;
-RTWebSocket.prototype.outstandingThresh = 1024*32;
-RTWebSocket.prototype.maxAdditionalDelay = 0.020;
+RTWebSocket.prototype.minOutstandingThresh = 1024*64;
+RTWebSocket.prototype.outstandingThresh = 1024*64;
+RTWebSocket.prototype.maxAdditionalDelay = 0.050;
 RTWebSocket.prototype.sendFlowIDBatchSize = 16;
 RTWebSocket.prototype.sendFlowIDRefresh = 4;
 
@@ -437,9 +437,8 @@ RTWebSocket.prototype._scheduleAckNow = function() {
 RTWebSocket.prototype._sendAcks = function() {
 	this._ackNow = false;
 	var recvFlow;
-	while((recvFlow = this._ackFlows.shift())) {
+	while((recvFlow = this._ackFlows.shift()))
 		recvFlow._sendAck();
-	}
 }
 
 RTWebSocket.prototype._queueTransmission = function(sendFlow) {
@@ -501,6 +500,7 @@ RTWebSocket.prototype._measureRTT = function() {
 		var rtt = Math.max(RTWebSocket._now() - this._rttAnchor, 0.0001);
 		var numBytes = this._flowBytesSent - this._rttPreviousPosition;
 		var bandwidth = numBytes / rtt;
+
 		this._rttAnchor = undefined;
 		this._rttPreviousPosition = this._flowBytesSent;
 
@@ -535,7 +535,9 @@ RTWebSocket.prototype._addRTT = function(rtt) {
 		this._baseRTTCache = this._rttMeasurements.reduce(function(l, r) { return Math.min(l, r.rtt); }, Infinity);
 	}
 	else
+	{
 		entry.rtt = Math.min(entry.rtt, rtt);
+	}
 
 	this._baseRTTCache = Math.min(this._baseRTTCache, rtt);
 }
@@ -780,13 +782,17 @@ SendFlow.prototype.close = function() {
 	this._queueTransmission();
 }
 
-SendFlow.prototype.abandonQueuedMessages = function(age) {
+SendFlow.prototype.abandonQueuedMessages = function(age, onlyUnstarted) {
 	age = age || 0;
+	onlyUnstarted = onlyUnstarted || false;
 	for(var x = 0; x < this._sendBuffer.length; x++)
 	{
 		var message = this._sendBuffer[x];
 		if(message.receipt.age >= age)
-			message.receipt.abandon();
+		{
+			if((!onlyUnstarted) || (!message.receipt.started))
+				message.receipt.abandon();
+		}
 		else
 			break;
 	}
@@ -1196,7 +1202,7 @@ RecvFlow.prototype._onFlowCloseMessage = function() {
 	this._complete = true;
 	this._onDataAbandon(0);
 	this._queueDelivery();
-	this._sendAck();
+	this._queueAck(true);
 }
 
 RecvFlow.prototype._onData = function(more, msgFragment, chunkLength) {

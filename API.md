@@ -88,8 +88,10 @@ interface RTWebSocket {
     void close ();
     // close this flow normally, completing it.
 
-    void abandonQueuedMessages (optional double age);
+    void abandonQueuedMessages (optional double age, optional boolean onlyUnstarted);
     // abandon any queued messages at least as old as age seconds (default: 0).
+    // if onlyUnstarted is true (default false), do not abandon a queued message
+    // if it has started being sent.
 
     attribute unsigned long priority;
     // the priority of this flow. higher priority flows' data are sent before those of lower

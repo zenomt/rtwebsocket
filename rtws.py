@@ -70,9 +70,9 @@ class RTWebSocket(object):
 	defaultRcvbuf = 2097151
 	rttHistoryThresh = 60
 	rttHistoryCapacity = 5
-	minOutstandingThresh = 16*1024
-	outstandingThresh = 32*1024
-	maxAdditionalDelay = 0.020
+	minOutstandingThresh = 64*1024
+	outstandingThresh = 64*1024
+	maxAdditionalDelay = 0.050
 
 	sendFlowIDBatchSize = 16
 	sendFlowIDRefresh   = 4
@@ -494,10 +494,11 @@ class SendFlow(object):
 		self._open = False
 		self._queueTransmission()
 
-	def abandonQueuedMessages(self, age = 0):
+	def abandonQueuedMessages(self, age = 0, onlyUnstarted = False):
 		for message in self._sendBuffer:
 			if message.receipt.age >= age:
-				message.receipt.abandon()
+				if (not onlyUnstarted) or (not message.receipt.started):
+					message.receipt.abandon()
 			else:
 				break
 		self._queueTransmission()
@@ -805,7 +806,7 @@ class RecvFlow(object):
 		self._complete = True
 		self._onDataAbandon(0)
 		self._queueDelivery()
-		self._sendAck()
+		self._queueAck(immediate = True)
 
 	def _onData(self, more, msgFragment, chunkLength):
 		self._receivedByteCount += chunkLength
