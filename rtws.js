@@ -686,6 +686,7 @@ function SendFlow(owner, flowID, returnFlowID, metadata) {
 	this._writablePending = false;
 	this._shouldNotifyWhenWritable = false;
 	this._ackedPosition = 0;
+	this._nextMessageNumber = 1;
 
 	var flowIDVLU = VLU.makeVLU(flowID);
 
@@ -763,13 +764,14 @@ SendFlow.prototype.write = function(bytes, startBy, endBy, capture) {
 		capture = true;
 	}
 
-	var receipt = new WriteReceipt();
+	var receipt = new WriteReceipt(this._nextMessageNumber);
 	receipt.startBy = startBy;
 	receipt.endBy = endBy;
 
 	var message = new WriteMessage(bytes, capture, receipt);
 	this._sendBuffer.push(message);
 	this._sendBufferByteLength += bytes.length;
+	this._nextMessageNumber++;
 
 	this._queueTransmission();
 	return receipt;
@@ -953,13 +955,14 @@ SendFlow.prototype._onExceptionMessage = function(code, description) {
 
 SendFlow.prototype._queueTransmission = function() { this._owner._queueTransmission(this); }
 
-function WriteReceipt() {
+function WriteReceipt(messageNumber) {
 	this._origin = RTWebSocket._now();
 	this._abandoned = false;
 	this._sent = false;
 	this._started = false;
 	this._startBy = Infinity;
 	this._endBy = Infinity;
+	this._messageNumber = messageNumber;
 }
 
 WriteReceipt.prototype.onsent = function(sender) {}
@@ -990,6 +993,10 @@ Object.defineProperties(WriteReceipt.prototype, {
 	},
 	age: {
 		get: function() { return RTWebSocket._now() - this._origin; },
+		enumerable: true
+	},
+	messageNumber: {
+		get: function() { return this._messageNumber; },
 		enumerable: true
 	}
 });

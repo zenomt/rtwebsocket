@@ -190,13 +190,13 @@ interface RTWebSocket {
     // the message will be decoded as UTF-8 and delivered as a DOMString,
     // otherwise it will be delivered as a Uint8Array.
 
-    callback OnMessageCallback void (RecvFlow recvFlow, (Uint8Array or DOMString) message, unsigned long number);
+    callback OnMessageCallback void (RecvFlow recvFlow, (Uint8Array or DOMString) message, unsigned long messageNumber);
     attribute OnMessageCallback? onmessage;
     // if set, called when a message is received. recvFlow is the flow on which this
-    // message was received. the type of message depends on mode. number is the
+    // message was received. the type of message depends on mode. messageNumber is the
     // ordinal number of this message according to the sender, including any abandoned
-    // messages that were not delivered. number can be used to detect abandoned messages
-    // by paying attention to gaps in sequence.
+    // messages that were not delivered. messageNumber can be used to detect abandoned
+    // messages by paying attention to gaps in sequence.
 
     callback OnCompleteCallback void (RecvFlow recvFlow);
     attribute OnCompleteCallback oncomplete;
@@ -229,8 +229,11 @@ interface RTWebSocket {
     readonly attribute boolean started;
     // true if any part of this message has been sent, otherwise false.
 
-    readonly double age;
+    readonly attribute double age;
     // the duration in seconds since this message was queued.
+
+    readonly attribute unsigned long messageNumber;
+    // the ordinal number of this message.
 
     callback WriteReceiptCallback void (WriteReceipt receipt);
 

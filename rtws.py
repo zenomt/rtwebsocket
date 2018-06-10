@@ -451,6 +451,7 @@ class SendFlow(object):
 		self._writablePending = False
 		self._shouldNotifyWhenWritable = False
 		self._ackedPosition = 0
+		self._nextMessageNumber = 1
 
 		metadata = metadata or ""
 		if type(metadata) == unicode:
@@ -477,13 +478,14 @@ class SendFlow(object):
 		if not self._open:
 			raise IOError("write: flow is closed")
 
-		receipt = WriteReceipt(self._owner._callLater)
+		receipt = WriteReceipt(self._owner._callLater, self._nextMessageNumber)
 		receipt.startBy = startBy
 		receipt.endBy = endBy
 
 		message = self.WriteMessage(data, receipt)
 		self._sendBuffer.append(message)
 		self._sendBufferByteLength += len(data)
+		self._nextMessageNumber += 1
 
 		self._queueTransmission()
 		return receipt
@@ -894,7 +896,7 @@ class RecvFlow(object):
 
 
 class WriteReceipt(object):
-	def __init__(self, callLater_f):
+	def __init__(self, callLater_f, messageNumber):
 		self._origin = time.time()
 		self._abandoned = False
 		self._sent = False
@@ -902,6 +904,7 @@ class WriteReceipt(object):
 		self._startBy = inf
 		self._endBy = inf
 		self._callLater_f = callLater_f
+		self._messageNumber = messageNumber
 
 	def abandon(self):
 		if not self._abandoned:
@@ -947,6 +950,10 @@ class WriteReceipt(object):
 	@property
 	def age(self):
 		return time.time() - self._origin
+
+	@property
+	def messageNumber(self):
+		return self._messageNumber
 
 	def onsent(self, receipt):
 		pass
