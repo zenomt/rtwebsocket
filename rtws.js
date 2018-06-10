@@ -372,18 +372,18 @@ RTWebSocket.prototype._onFlowCloseMessage = function(data) {
 RTWebSocket.prototype._onDataAckMessage = function(data) {
 	var cursor = 1;
 	var flowID = {};
-	var position = {};
+	var deltaBytes = {};
 	var bufferAdvertisement = {};
 
 	cursor += this.parseVLU(data, cursor, -1, flowID);
-	cursor += this.parseVLU(data, cursor, -1, position);
+	cursor += this.parseVLU(data, cursor, -1, deltaBytes);
 	cursor += this.parseVLU(data, cursor, -1, bufferAdvertisement);
 
 	var sendFlow = this._sendFlowsByID[flowID.value];
 	if(!sendFlow)
 		throw new ReferenceError("SendFlow (" + flowID.value + ") not found for ack");
 
-	sendFlow._onAck(position.value, bufferAdvertisement.value);
+	sendFlow._onAck(deltaBytes.value, bufferAdvertisement.value);
 }
 
 RTWebSocket.prototype._onFlowCloseAckMessage = function(data) {
@@ -933,11 +933,11 @@ SendFlow.prototype._transmitOneFragment = function() {
 	return true;
 }
 
-SendFlow.prototype._onAck = function(position, bufferAdvertisement) {
-	this._owner._flowBytesAcked += Math.max(0, position - this._ackedPosition);
-	this._ackedPosition = Math.max(this._ackedPosition, position);
+SendFlow.prototype._onAck = function(deltaBytes, bufferAdvertisement) {
+	this._owner._flowBytesAcked += deltaBytes;
+	this._ackedPosition += deltaBytes;
 	this.rcvbuf = bufferAdvertisement;
-	this._sendThroughAllowed = position + bufferAdvertisement;
+	this._sendThroughAllowed = this._ackedPosition + bufferAdvertisement;
 	this._owner._measureRTT();
 	this._queueTransmission();
 	this._queueWritableNotify();
@@ -1190,13 +1190,15 @@ RecvFlow.prototype._sendAck = function() {
 		return;
 
 	var advertisement = this.advertisement;
-	this._ackThresh = this._receivedByteCount + (advertisement / 2);
+	this._ackThresh = advertisement / 2;
 
 	var bytes = [RTWebSocket.MSG_DATA_ACK]
 		.concat(VLU.makeVLU(this._flowID))
 		.concat(VLU.makeVLU(this._receivedByteCount))
 		.concat(VLU.makeVLU(advertisement));
 	this._owner._sendBytes(bytes);
+
+	this._receivedByteCount = 0;
 
 	if(this._complete)
 	{

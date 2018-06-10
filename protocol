@@ -25,7 +25,7 @@ flow close
 
 
 receive data ack
-  5a <vlu flowID> <vlu position> <vlu bufferAdvertisement>
+  5a <vlu flowID> <vlu deltaByteCount> <vlu bufferAdvertisement>
 
 receive flow close ack
   5c <vlu flowID>
@@ -56,7 +56,7 @@ sending data acks:
   immediately after receiving at least (last advertised buffer)/2 bytes on this flow.
   immediately on flow open.
   send all pending acks at once.
-  position is count of bytes in user data messages including headers.
+  deltaByteCount is count of bytes in user data messages including headers since last ack.
 
 on flow close:
   send ack, then flow close ack, recv flowID immediately no longer valid/in use.

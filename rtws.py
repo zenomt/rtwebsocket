@@ -412,10 +412,10 @@ class RTWebSocket(object):
 
 	def _onDataAckMessage(self, message):
 		cursor, flowID = parseVLU(message, 1)
-		cursor, position = parseVLU(message, cursor)
+		cursor, deltaBytes = parseVLU(message, cursor)
 		cursor, bufferAdvertisement = parseVLU(message, cursor)
 
-		self._sendFlowsByID[flowID]._onAck(position, bufferAdvertisement)
+		self._sendFlowsByID[flowID]._onAck(deltaBytes, bufferAdvertisement)
 
 	def _onFlowCloseAckMessage(self, message):
 		cursor, flowID = parseVLU(message, 1)
@@ -653,11 +653,11 @@ class SendFlow(object):
 
 		return True
 
-	def _onAck(self, position, bufferAdvertisement):
-		self._owner._flowBytesAcked += max(0, position - self._ackedPosition)
-		self._ackedPosition = max(self._ackedPosition, position)
+	def _onAck(self, deltaBytes, bufferAdvertisement):
+		self._owner._flowBytesAcked += deltaBytes
+		self._ackedPosition += deltaBytes
 		self._rcvbuf = bufferAdvertisement
-		self._sendThroughAllowed = position + bufferAdvertisement
+		self._sendThroughAllowed = self._ackedPosition + bufferAdvertisement
 		self._owner._measureRTT()
 		self._queueTransmission()
 		self._queueWritableNotify()
@@ -794,11 +794,13 @@ class RecvFlow(object):
 			return
 
 		advertisement = self.advertisement
-		self._ackThresh = self._receivedByteCount + (advertisement / 2)
+		self._ackThresh = advertisement / 2
 
 		message = chr(MSG_DATA_ACK) + makeVLU(self._flowID) + \
 			makeVLU(self._receivedByteCount) + makeVLU(advertisement)
 		self._owner._sendBytes(message)
+
+		self._receivedByteCount = 0
 
 		if self._complete:
 			self._owner._sendBytes(chr(MSG_FLOW_CLOSE_ACK) + makeVLU(self._flowID))
