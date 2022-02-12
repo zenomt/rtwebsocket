@@ -8,7 +8,7 @@ connection. Reference implementations are provided in JavaScript and Python (so 
 Protocol features include:
 
   - Multiple parallel unidirectional message flows over a single WebSocket
-  - Flows have Unicode metadata instead of port numbers
+  - Flows have binary metadata instead of port numbers
   - Return flow association for generalized bidirectional communication
   - The sender can abandon a message after queuing, even if transmission of the message has started
   - Independent per-flow flow control

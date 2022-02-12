@@ -17,6 +17,8 @@ interface RTWebSocket {
     // constructor argument:
     //    uri: the WebSocket URI (ws://... or wss://...) to which to connect.
 
+    typedef (ArrayBuffer or ArrayBufferView or DOMString or byte[]) Data_t;
+
     const unsigned long PRI_LOWEST  = 0;
     const unsigned long PRI_HIGHEST = 7;
 
@@ -29,7 +31,7 @@ interface RTWebSocket {
     const unsigned long PRI_FLASH          = 6;
     const unsigned long PRI_FLASH_OVERRIDE = PRI_HIGHEST;
 
-    <a href="#SendFlow">SendFlow</a> openFlow (DOMString metadata, optional unsigned long priority);
+    <a href="#SendFlow">SendFlow</a> openFlow (Data_t metadata, optional unsigned long priority);
     // open a new sending flow with metadata having priority (default: PRI_ROUTINE).
     // throws a new Error if this is not open, otherwise answers the new flow.
 
@@ -71,8 +73,7 @@ interface RTWebSocket {
 
 <pre>
 <a name="SendFlow"></a>interface SendFlow {
-    typedef (ArrayBuffer or ArrayBufferView or DOMString or byte[]) SendFlowData;
-    <a name="Sendflow-write"></a><a href="#WriteReceipt">WriteReceipt</a> write (SendFlowData data, optional double startBy, optional double endBy, optional boolean capture);
+    <a name="Sendflow-write"></a><a href="#WriteReceipt">WriteReceipt</a> write (RTWebSocket.Data_t data, optional double startBy, optional double endBy, optional boolean capture);
     // queue data to send to the receiver. if data is a DOMString, it is encoded
     // to UTF-8, otherwise data is converted to a Uint8Array. if capture is true,
     // data is allowed to be captured to avoid a copy; otherwise a copy will be made.
@@ -149,7 +150,7 @@ interface RTWebSocket {
     // accept this new receiving flow. a new incoming receiving flow that is not
     // accepted in the onrecvflow callback is automatically rejected.
 
-    <a href="#SendFlow">SendFlow</a> openReturnFlow (DOMString metadata, optional unsigned long pri);
+    <a href="#SendFlow">SendFlow</a> openReturnFlow (RTWebSocket.Data_t metadata, optional unsigned long pri);
     // open a new sending flow with metadata having priority (default: PRI_ROUTINE) associated
     // in return to this receiving flow.
     // throws a new Error if this RecvFlow is not open, otherwise answers the new flow.
@@ -158,8 +159,11 @@ interface RTWebSocket {
     // reject and close this receiving flow, sending an exception back to the
     // sender with code and description, if set.
 
-    readonly attribute DOMString metadata;
+    readonly attribute Uint8Array metadata;
     // this flow's metadata set by the sender.
+
+    readonly attribute DOMString textMetadata;
+    // convenience attribute, this flow's metadata set by the sender, decoded if possible from UTF-8.
 
     readonly attribute boolean isOpen;
     // true if this flow is open, false otherwise.

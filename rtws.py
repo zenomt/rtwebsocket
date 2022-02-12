@@ -355,7 +355,7 @@ class RTWebSocket(object):
 		if hasReturnAssociation:
 			cursor, returnAssociationID = parseVLU(message, cursor)
 			returnAssociation = self._sendFlowsByID.get(returnAssociationID, None)
-		metadata = message[cursor:].decode('utf-8').encode('utf-8')
+		metadata = message[cursor:]
 
 		if self._recvFlowsByID.get(flowID, None) is not None:
 			raise ValueError("RecvFlow open: flowID " + flowID + " already in use")
@@ -681,7 +681,7 @@ class SendFlow(object):
 
 class RecvFlow(object):
 	def __repr__(self):
-		return "<RecvFlow id:" + `self._flowID` + " @" + hex(id(self)) + ' "' + self.metadata + '">'
+		return "<RecvFlow id:" + `self._flowID` + " @" + hex(id(self)) + " b" + repr(bytes(self.metadata)) + ">"
 
 	def __init__(self, owner, flowID, metadata, returnAssociation):
 		self._owner = owner
@@ -734,7 +734,14 @@ class RecvFlow(object):
 
 	@property
 	def metadata(self):
-		return self._metadata
+		return self._metadata[:]
+
+	@property
+	def textMetadata(self):
+		try:
+			return self._metadata.decode("utf-8")
+		except UnicodeError:
+			return u""
 
 	@property
 	def isOpen(self):

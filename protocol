@@ -10,8 +10,8 @@ set ack window
 
 
 flow open
-  10 <vlu flowID> <UTF8 metadata>
-  30 <vlu flowID> <vlu returnAssoc> <UTF8 metadata>
+  10 <vlu flowID> <bytes metadata>
+  30 <vlu flowID> <vlu returnAssoc> <bytes metadata>
 
 user data
   1d <vlu flowID> <msg>  // last frag

@@ -277,7 +277,7 @@ RTWebSocket.prototype._onFlowOpenMessage = function(data) {
 	if(hasReturnAssociation)
 		cursor += this.parseVLU(data, cursor, -1, returnAssociationID);
 
-	metadata = this.UTF8.decode(data, cursor);
+	metadata = data.subarray ? data.subarray(cursor) : data.slice(cursor);
 
 	if(this._recvFlowsByID[flowID.value])
 		throw new ReferenceError("RecvFlow open: flowID already in use");
@@ -688,12 +688,17 @@ function SendFlow(owner, flowID, returnFlowID, metadata) {
 	this._ackedPosition = 0;
 	this._nextMessageNumber = 1;
 
+	metadata = metadata || "";
+	if(typeof(metadata) == "string")
+		metadata = owner.UTF8.encode(metadata);
+	metadata = Array.prototype.slice.call(new Uint8Array(metadata)); // convert to byte[]
+
 	var flowIDVLU = VLU.makeVLU(flowID);
 
 	this._flowOpenMessage = new Uint8Array([ returnFlowID >= 0 ? RTWebSocket.MSG_FLOW_OPEN_RETURN : RTWebSocket.MSG_FLOW_OPEN ]
 		.concat(flowIDVLU)
 		.concat(returnFlowID >= 0 ? VLU.makeVLU(returnFlowID) : [])
-		.concat(owner.UTF8.encode(metadata || "")));
+		.concat(metadata));
 
 	this._flowCloseMessage = [RTWebSocket.MSG_FLOW_CLOSE].concat(flowIDVLU);
 }
@@ -1131,7 +1136,11 @@ Object.defineProperties(RecvFlow.prototype, {
 		enumerable: true
 	},
 	metadata: {
-		get: function() { return this._metadata; },
+		get: function() { return new Uint8Array(this._metadata); },
+		enumerable: true
+	},
+	textMetadata: {
+		get: function() { return this._owner.UTF8.decode(this._metadata); },
 		enumerable: true
 	},
 	advertisement: {
