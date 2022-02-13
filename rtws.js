@@ -972,6 +972,7 @@ function WriteReceipt(messageNumber) {
 
 WriteReceipt.prototype.onsent = function(sender) {}
 WriteReceipt.prototype.onabandoned = function(sender) {}
+WriteReceipt.prototype.parent = null;
 
 Object.defineProperties(WriteReceipt.prototype, {
 	abandoned: {
@@ -1010,6 +1011,7 @@ WriteReceipt.prototype.abandon = function() {
 	if(!this._abandoned)
 	{
 		this._abandoned = true;
+		this.parent = null;
 		var self = this;
 		if(this.onabandoned && !this._sent)
 			Promise.resolve().then(function() { self.onabandoned(self); } );
@@ -1022,11 +1024,12 @@ WriteReceipt.prototype._isAbandoned = function() {
 	if(this._sent)
 		return false;
 	var age = this.age;
-	if((this._started) && (age > this.endBy))
-		return true;
-	if((!this._started) && (age > this.startBy))
-		return true;
-	return false;
+	if( ((this._started) && (age > this.endBy))
+	 || ((!this._started) && (age > this.startBy))
+	 || (this.parent && this.parent._abandoned)
+	)
+		this.abandon();
+	return this._abandoned;
 }
 
 WriteReceipt.prototype._onStarted = function() { this._started = true; }

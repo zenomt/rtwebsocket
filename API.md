@@ -222,6 +222,11 @@ interface RTWebSocket {
     // attributes. changing startBy has no effect if transmission of this message
     // has already started.
 
+    attribute WriteReceipt? parent;
+    // If set, this message will be abandoned if the parent is abandoned. Useful for
+    // chaining depdendent messages together (such as a predictive-coded video frame that
+    // can't be decoded if the previous one is not received).
+
     readonly attribute boolean abandoned;
     // true if this message is abandoned (either by timing out or by being manually
     // abandoned), false if it was or may still be sent.

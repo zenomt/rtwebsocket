@@ -914,10 +914,12 @@ class WriteReceipt(object):
 		self._endBy = inf
 		self._callLater_f = callLater_f
 		self._messageNumber = messageNumber
+		self.parent = None
 
 	def abandon(self):
 		if not self._abandoned:
 			self._abandoned = True
+			self.parent = None
 			if not self._sent:
 				self._callLater_f(self.onabandoned, self)
 
@@ -942,11 +944,9 @@ class WriteReceipt(object):
 		if self._sent:
 			return False
 		age = self.age
-		if (self._started) and (age > self._endBy):
-			return True
-		if (not self._started) and (age > self._startBy):
-			return True
-		return False
+		if ((self._started) and (age > self._endBy)) or ((not self._started) and (age > self._startBy)) or (self.parent and self.parent._abandoned):
+			self.abandon()
+		return self._abandoned
 
 	@property
 	def sent(self):
