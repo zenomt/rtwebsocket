@@ -3,11 +3,11 @@
 
 // AMF0 encode/decode
 
-var com_zenomt_rtmp_AMF0 = {};
+var com_zenomt_AMF0 = {};
 
 ; (function() {
 
-const AMF0 = com_zenomt_rtmp_AMF0;
+const AMF0 = com_zenomt_AMF0;
 
 AMF0.AMF0_NUMBER_MARKER = 0x00;
 AMF0.AMF0_BOOLEAN_MARKER = 0x01;
@@ -174,7 +174,7 @@ function encodeObject(val, dst) {
 
 /**
  * Encode a JSON-compatible value to AMF0. No object references/cycles.
- * @param {any} val - The value to encode (string, number, true, false, undefined, array, object)
+ * @param {any} val - The value to encode (string, number, true, false, undefined, array, object).
  * @param {array} dst - The encoding destination. Bytes (as integers) are push()ed to dst.
  * @return {array} Returns dst as a convenience.
  */
@@ -202,6 +202,27 @@ AMF0.encode = function(val, dst) {
 		throw new ReferenceError("can't serialize to AMF0");
 
 	return dst;
+}
+
+/**
+ * Encode many JSON-compatible values to AMF0, concatenating them to a supplied destination.
+ * @param {array} dst - Encoding destination. Bytes (as integers) are push()ed to dst.
+ * @param {...any} vals - Zero or more values to encode (string, number, true, false, undefined, array, objectc).
+ * @return {array} Returns dst as a convenience.
+ */
+AMF0.encodeManyTo = function(dst, ...vals) {
+	for(const each of vals)
+		AMF0.encode(each, dst);
+	return dst;
+}
+
+/**
+ * Convenience function, encode many JSON-compatible values to AMF0, concatenating them.
+ * @param {...any} vals - Zero or more values to encode (string, number, true, false, undefined, array, objectc).
+ * @return {array} The values encoded to AMF0.
+ */
+AMF0.encodeMany = function(...vals) {
+	return AMF0.encodeManyTo([], ...vals);
 }
 
 function decodeNumber(bytes, cursor, limit, dst)
@@ -247,9 +268,9 @@ function decodeString(bytes, cursor, limit, dst)
 		if(limit - cursor < 4)
 			return 0;
 
-		size = bytes[cursor++]; size <<= 8;
-		size += bytes[cursor++]; size <<= 8;
-		size += bytes[cursor++]; size <<= 8;
+		size = bytes[cursor++]; size *= 256; // Shifting implies signed int32 in JS, only 31 bits for unsigned.
+		size += bytes[cursor++]; size *= 256;
+		size += bytes[cursor++]; size *= 256;
 		size += bytes[cursor++];
 	}
 
@@ -270,9 +291,9 @@ function decodeArray(bytes, cursor, limit, dst, maxDepth)
 	if(limit - cursor < 4)
 		return 0;
 
-	var size = bytes[cursor++]; size <<= 8;
-	size += bytes[cursor++]; size <<= 8;
-	size += bytes[cursor++]; size <<= 8;
+	var size = bytes[cursor++]; size *= 256;
+	size += bytes[cursor++]; size *= 256;
+	size += bytes[cursor++]; size *= 256;
 	size += bytes[cursor++];
 
 	var rv = [];
@@ -346,9 +367,9 @@ function decodeECMAArray(bytes, cursor, limit, dst, maxDepth)
 	if(limit - cursor < 4)
 		return 0;
 
-	var size = bytes[cursor++]; size <<= 8;
-	size += bytes[cursor++]; size <<= 8;
-	size += bytes[cursor++]; size <<= 8;
+	var size = bytes[cursor++]; size *= 256;
+	size += bytes[cursor++]; size *= 256;
+	size += bytes[cursor++]; size *= 256;
 	size += bytes[cursor++];
 
 	var rv = {};
@@ -389,10 +410,10 @@ function decodeECMAArray(bytes, cursor, limit, dst, maxDepth)
 }
 
 /**
- * Decode AMF0 to a JSON-compatible Javascript value. Object references/cycles, Dates, XML Documents, or AMF3 not supported.
+ * Decode AMF0 to a JSON-compatible Javascript value. Object references/cycles, Dates, XML Documents, and AMF3 not supported.
  * @param {(array|Uint8Array)} bytes - The AMF0 encoded value. Any object that has a length and is addressed with [] works.
  * @param {int} [cursor=0] - Where in bytes to start decoding.
- * @param {int} [limit=bytes.length] - Where in bytes to not go past while decoding. -1 or missing means bytes.length.
+ * @param {int} [limit=bytes.length] - Where in bytes to not go past while decoding. Negative or missing means bytes.length.
  * @param {array} [dst=[]] - Destination, decoded object is push()ed to dst.
  * @param {int} [maxDepth=AMF0.MAX_DEPTH] - The maximum depth for nested objects, for safety.
  * @return {int} The number of bytes consumed to decode one object, or 0 on error.
@@ -458,7 +479,7 @@ AMF0.decode = function(bytes, cursor, limit, dst, maxDepth) {
  * Decode as many sequential AMF0 objects as possible from bytes.
  * @param {(array|Uint8Array)} bytes - The AMF0 encoded values. Any object that has a length and is addressed with [] works.
  * @param {int} [cursor=0] - Where in bytes to start decoding.
- * @param {int} [limit=bytes.length] - Where in bytes to not go past while decoding. -1 or missing means bytes.length.
+ * @param {int} [limit=bytes.length] - Where in bytes to not go past while decoding. Negative or missing means bytes.length.
  * @param {int} [maxDepth=AMF0.MAX_DEPTH] - The maximum depth for nested objects, for safety.
  * @return {array} As many AMF0 objects as could be decoded before running out of bytes or error.
  */
