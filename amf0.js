@@ -300,7 +300,7 @@ function decodeArray(bytes, cursor, limit, dst, maxDepth)
 	while(size--)
 	{
 		var tmp = [];
-		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth - 1);
+		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth);
 		if(0 == consumed)
 			return 0;
 		rv.push(tmp.shift());
@@ -348,7 +348,7 @@ function decodeObject(bytes, cursor, limit, dst, maxDepth)
 		cursor += keyLength;
 
 		var tmp = [];
-		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth - 1);
+		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth);
 		if(0 == consumed)
 			return 0;
 		rv[key] = tmp.shift();
@@ -395,7 +395,7 @@ function decodeECMAArray(bytes, cursor, limit, dst, maxDepth)
 		}
 
 		var tmp = [];
-		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth - 1);
+		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth);
 		if(0 == consumed)
 			return 0;
 
@@ -419,12 +419,12 @@ function decodeECMAArray(bytes, cursor, limit, dst, maxDepth)
  * @return {int} The number of bytes consumed to decode one object, or 0 on error.
  */
 AMF0.decode = function(bytes, cursor, limit, dst, maxDepth) {
-	cursor = cursor || 0;
 	if(undefined === maxDepth)
 		maxDepth = AMF0.MAX_DEPTH;
-	if(maxDepth < 1)
+	if(--maxDepth < 0)
 		return 0;
 
+	cursor = cursor || 0;
 	dst = dst || [];
 	if((limit < 0) || (limit > bytes.length))
 		limit = bytes.length;
