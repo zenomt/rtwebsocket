@@ -211,8 +211,8 @@ AMF0.encode = function(val, dst) {
  * @return {array} Returns dst as a convenience.
  */
 AMF0.encodeManyTo = function(dst, ...vals) {
-	for(const each of vals)
-		AMF0.encode(each, dst);
+	for(const val of vals)
+		AMF0.encode(val, dst);
 	return dst;
 }
 
