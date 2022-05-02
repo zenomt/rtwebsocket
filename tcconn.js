@@ -304,6 +304,8 @@ Object.defineProperties(Stream.prototype, {
 	isOpen: { get: function() { return this._isOpen; }, enumerable: true }
 });
 Stream.prototype.onstatus = function(e) { console.log("Stream.onstatus", e); }
+Stream.prototype.onaudio = function(header, message) { console.log("Stream.onaudio", header); }
+Stream.prototype.onvideo = function(header, message) { console.log("Stream.onaudio", header); }
 
 Stream.prototype.publish = function(...args) {
 	if(!this.isOpen)
@@ -417,21 +419,107 @@ Stream.prototype._onCommandMessage = function(command, tid, arg, ...args) {
 }
 
 Stream.prototype._onStreamMessage = function(header, message) {
+	if(this._mode != "play")
+		return;
+
 	switch(header.type)
 	{
 	case TC.TCMSG_AUDIO:
-		console.log("audio ts:" + (header.timestamp / 1000.0) + " size: " + (message.length - header.consumed));
-		return; // TODO
+		this._onAudioMessage(header, message);
+		return;
 
 	case TC.TCMSG_VIDEO:
-		console.log("video ts:" + (header.timestamp / 1000.0) + " size: " + (message.length - header.consumed));
-		return; // TODO
+		this._onVideoMessage(header, message);
+		return;
 
 	case TC.TCMSG_DATA:
 	case TC.TCMSG_DATA_EX:
 		this._onDataMessage(header, message);
 		return;
 	}
+}
+
+Stream.prototype._onVideoMessage = function(header, message) {
+	if("function" != typeof(this.onvideo))
+		return;
+	if(0 == (message.length - header.consumed))
+		return;
+
+	let cursor = header.consumed;
+	const limit = message.length;
+
+	header.frametype = message[cursor] & TC.TC_VIDEO_FRAMETYPE_MASK;
+	header.codec = message[cursor] & TC.TC_VIDEO_CODEC_MASK;
+	header.presentationTime = header.timestamp;
+
+	cursor++;
+
+	if(TC.TC_VIDEO_CODEC_AVC == header.codec)
+	{
+		if(limit - cursor < 4) // AVCPacketType and Composition Time Offset
+			return;
+
+		header.isAVC = true;
+		header.avcPacketType = message[cursor++];
+		let compositionTimeOffset = message[cursor++]; compositionTimeOffset <<= 8;
+		compositionTimeOffset += message[cursor++]; compositionTimeOffset <<= 8;
+		compositionTimeOffset += message[cursor++];
+		if(compositionTimeOffset & 0x00800000)
+			compositionTimeOffset |= 0xff000000; // sign extend, JS treats as signed int32
+		header.presentationTime = header.timestamp + compositionTimeOffset;
+	}
+
+	if(TC.TC_VIDEO_FRAMETYPE_COMMAND == header.frametype)
+	{
+		if(cursor >= limit)
+			return;
+		header.command = message[cursor++];
+	}
+
+	header.payloadOffset = cursor;
+
+	try { this.onvideo(header, message); }
+	catch(e) { console.log("exception calling Stream.onvideo", e); }
+}
+
+Stream.prototype._onAudioMessage = function(header, message) {
+	if("function" != typeof(this.onaudio))
+		return;
+
+	if(0 == (message.length - header.consumed))
+	{
+		header.silence = true;
+		header.payloadOffset = header.consumed;
+	}
+	else
+	{
+		let cursor = header.consumed;
+		const limit = message.length;
+
+		header.codec = message[cursor] & TC.TC_AUDIO_CODEC_MASK;
+		header.rate = message[cursor] & TC.TC_AUDIO_RATE_MASK;
+		header.soundSize = message[cursor] & TC.TC_AUDIO_SOUNDSIZE_MASK;
+		header.sound = message[cursor] & TC.TC_SOUND_MASK;
+
+		cursor++;
+
+		if(TC.TC_AUDIO_CODEC_AAC == header.codec)
+		{
+			if(cursor >= limit)
+				return;
+
+			header.isAAC = true;
+			header.aacPacketType = message[cursor];
+			cursor++;
+		}
+		else
+			header.isAAC = false;
+
+		header.payloadOffset = cursor;
+	}
+
+	try { this.onaudio(header, message); }
+	catch(e) { console.log("exception calling Stream.onaudio", e); }
 }
 
 Stream.prototype._onDataMessage = function(header, message) {
