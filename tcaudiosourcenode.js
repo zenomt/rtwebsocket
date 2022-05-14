@@ -16,6 +16,10 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		this._totalFramesAppended = 0;
 		this._bufferTime = 0;
 		this._pendingFlushes = {};
+		this._lastAppendedDuration = 0;
+
+		this._minimumBufferLengthNumberOfBuckets = 8;
+		this.resetMinimumBufferLength();
 
 		this.port.onmessage = (event) => { this._onMessage(event); };
 	}
@@ -39,6 +43,8 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		if(planes && planes[0])
 		{
 			this._totalFramesAppended += planes[0].length;
+			if(planes[0].length)
+				this._lastAppendedDuration = planes[0].length / this._sampleRate;
 			this.port.postMessage({ command: "buffer", planes, timestamp, insertionTime: this.context.currentTime });
 		}
 	}
@@ -72,6 +78,50 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		this.port.postMessage({ command: "setBufferTime", bufferTime: val || 0 });
 	}
 
+	get lastAppendedDuration() { return this._lastAppendedDuration; }
+
+	resetMinimumBufferLength(windowDuration) {
+		windowDuration = Number(windowDuration) || 8;
+		this._minimumBufferLengthWindowDuration = windowDuration;
+		this._minimumBufferLengthBucketDuration = windowDuration / this._minimumBufferLengthNumberOfBuckets;
+		this._minimums = [{ time:-Infinity, minimum:Infinity }];
+		this._cachedMinimumBufferLength = Infinity;
+	}
+
+	get minimumBufferLength() { return this._cachedMinimumBufferLength; }
+
+	isOverbuffered() {
+		const bufferLength = this.bufferLength;
+
+		return ( (this._lastAppendedDuration > 0)
+		      && (bufferLength > this._bufferTime + 4 * this._lastAppendedDuration)
+		      && (this._cachedMinimumBufferLength > this._bufferTime + 3 * this._lastAppendedDuration)
+		      && (bufferLength > this._bufferTime + this._cachedMinimumBufferLength + 2 * this._lastAppendedDuration)
+		);
+	}
+
+	_addBufferLengthMeasurement(value) {
+		const now = window.performance.now() / 1000.0;
+		const entry = this._minimums[0];
+		const historyThresh = this._minimumBufferLengthWindowDuration;
+		if(now - entry.time > this._minimumBufferLengthBucketDuration)
+		{
+			this._minimums.unshift({ time:now, minimum:value });
+
+			var lastEntry;
+			while( (lastEntry = this._minimums[this._minimums.length - 1])
+			    && (now - lastEntry.time > historyThresh)
+			)
+				this._minimums.pop();
+
+			this._cachedMinimumBufferLength = this._minimums.reduce(function(l, r) { return Math.min(l, r.minimum); }, Infinity);
+		}
+		else
+			entry.minimum = Math.min(entry.minimum, value);
+
+		this._cachedMinimumBufferLength = Math.min(this._cachedMinimumBufferLength, value);
+	}
+
 	_onFlush(info) {
 		if(info && this._pendingFlushes[info.flushID])
 		{
@@ -97,7 +147,10 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		if(undefined != data.timestamp)
 			this._lastTimestamp = data.timestamp;
 		if(undefined != data.totalFramesProcessed)
+		{
 			this._totalFramesProcessed = data.totalFramesProcessed;
+			this._addBufferLengthMeasurement(this.bufferLength);
+		}
 
 		if(data.event)
 		{
@@ -121,6 +174,7 @@ class com_zenomt_SimpleAudioController {
 		this._primed = false;
 		this._pipelinePending = false;
 		this._savedTimestamp = undefined;
+		this._lastAppendedDuration = 0;
 	}
 
 	get gain() { return this._gain; }
@@ -147,13 +201,17 @@ class com_zenomt_SimpleAudioController {
 		if(!(sampleRate > 0))
 			throw new RangeError("sample rate must be greater than 0");
 
+		const duration = planes[0].length / sampleRate;
+		if(duration)
+			this._lastAppendedDuration = duration;
+
 		this._primed = true;
 		this._buffer.push({
 			command: "buffer",
 			planes,
 			sampleRate,
 			timestamp,
-			duration: planes[0].length / sampleRate
+			duration
 		});
 		this._processBuffer();
 	}
@@ -204,6 +262,10 @@ class com_zenomt_SimpleAudioController {
 		});
 		return rv;
 	}
+
+	get lastAppendedDuration() { return this._lastAppendedDuration; }
+
+	get audioSourceNode() { return this._tcSourceNode; }
 
 	_processBuffer() {
 		if(this._pipelinePending)
