@@ -45,7 +45,7 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	}
 
 	// deep copy, ensures AMF0 compatible early
-	connectPayload = AMF0.decodeMany(AMF0.encodeMany(argObject, ...args));
+	const connectPayload = AMF0.decodeMany(AMF0.encodeMany(argObject, ...args));
 
 	this._rtws = new RTWebSocket(wsurl);
 	const myself = this;
