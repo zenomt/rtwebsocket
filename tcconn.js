@@ -501,6 +501,22 @@ Stream.prototype._onAudioMessage = function(header, message) {
 		header.soundSize = message[cursor] & TC.TC_AUDIO_SOUNDSIZE_MASK;
 		header.sound = message[cursor] & TC.TC_SOUND_MASK;
 
+		header.numberOfChannels = (TC.TC_AUDIO_SOUND_STEREO == header.sound) ? 2 : 1;
+
+		switch(header.rate)
+		{
+		case TC.TC_AUDIO_RATE_11025: header.sampleRate = 11025; break;
+		case TC.TC_AUDIO_RATE_22050: header.sampleRate = 22050; break;
+		case TC.TC_AUDIO_RATE_44100: header.sampleRate = 44100; break;
+
+		case TC.TC_AUDIO_RATE_5500:
+			if((TC.TC_AUDIO_CODEC_G711_MU_LAW == header.codec) || (TC.TC_AUDIO_CODEC_G711_A_LAW == header.codec))
+				header.sampleRate = 8000;
+			else
+				header.sampleRate = 5500;
+			break;
+		}
+
 		cursor++;
 
 		if(TC.TC_AUDIO_CODEC_AAC == header.codec)
