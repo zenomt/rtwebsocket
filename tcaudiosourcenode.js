@@ -96,7 +96,6 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		return ( (this._lastAppendedDuration > 0)
 		      && (bufferLength > this._bufferTime + 4 * this._lastAppendedDuration)
 		      && (this._cachedMinimumBufferLength > this._bufferTime + 3 * this._lastAppendedDuration)
-		      && (bufferLength > this._bufferTime + this._cachedMinimumBufferLength + 2 * this._lastAppendedDuration)
 		);
 	}
 

@@ -319,14 +319,26 @@ Stream.prototype.send = function(...args) {
 }
 
 Stream.prototype.sendWithTimestamp = function(timestamp, ...args) {
+	return this.sendMessage(undefined, TC.TCMSG_DATA, timestamp, AMF0.encodeMany(...args));
+}
+
+Stream.prototype.sendAudio = function(endBy, timestamp, ...byteses) {
+	return this.sendMessage(endBy, TC.TCMSG_AUDIO, timestamp, ...byteses);
+}
+
+Stream.prototype.sendVideo = function(endBy, timestamp, ...byteses) {
+	return this.sendMessage(endBy, TC.TCMSG_VIDEO, timestamp, ...byteses);
+}
+
+Stream.prototype.sendMessage = function(endBy, type, timestamp, ...byteses) {
 	if(!this.isOpen)
 		return;
 	if("publish" != this._mode)
 		throw new Error("not publishing");
 
-	const flow = this._openFlowForType(TC.TCMSG_DATA);
+	const flow = this._openFlowForType(type);
 	if(flow)
-		return flow.write(TC.Message.make(TC.TCMSG_DATA, timestamp, AMF0.encodeMany(...args)));
+		return flow.write(TC.Message.make(type, timestamp, ...byteses), endBy, endBy);
 }
 
 Stream.prototype.play = function(...args) {
