@@ -6,7 +6,8 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		super(context, 'com_zenomt_TCAudioSourceNodeProcessor', {
 			numberOfInputs: 0,
 			numberOfOutputs: 1,
-			channelCount: channelCount || 1
+			channelCount: channelCount || 1,
+			outputChannelCount: [channelCount || 1]
 		});
 
 		this._nextFlushID = 0;
@@ -378,3 +379,31 @@ class com_zenomt_SimpleAudioController {
 		}
 	}
 };
+
+class com_zenomt_AudioTapNode extends AudioWorkletNode {
+	static register(context) {
+		return context.audioWorklet.addModule("audiotapprocessor.js");
+	}
+
+	constructor(context, channelCount, samplesPerBuffer) {
+		super(context, 'com_zenomt_AudioTapNodeProcessor', {
+			numberOfInputs: 1,
+			numberOfOutputs: 1,
+			channelCount: channelCount || 1,
+			outputChannelCount: [channelCount || 1],
+			processorOptions: { samplesPerBuffer }
+		});
+
+		this.port.onmessage = (event) => { this._onMessage(event); };
+
+		this.onsamples = function(samples) { /* { sampleRate, planes, currentTime } */ };
+	}
+
+	_onMessage(event) {
+		if(this.onsamples)
+		{
+			try { this.onsamples(event.data); }
+			catch(e) { console.log("AudioTap onsamples", e); }
+		}
+	}
+}
