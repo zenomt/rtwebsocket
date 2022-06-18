@@ -12,6 +12,7 @@ function com_zenomt_TCConnection() {
 	this._controlRecv = null;
 	this._openPromiseControl = null;
 	this._streams = {};
+	this._syncManager = new RTWebSocket.FlowSyncManager();
 
 	this.client = {};
 }
@@ -90,6 +91,8 @@ Connection.prototype.createStream = function() {
 Connection.prototype.close = function(isError) {
 	if(!this._userOpen)
 		return;
+
+	this._syncManager.close();
 
 	if(isError && !this._tcOpen)
 		_onStatusMessage(this, this, { level:"error", code:"NetConnection.Connect.Failed" });
@@ -208,7 +211,7 @@ Connection.prototype._onMessage = function(streamID, flow, message, messageNumbe
 		return;
 
 	case TC.TCMSG_USER_CONTROL:
-		// TODO check for flow sync
+		this._onUserControlMessage(header, message, flow);
 		return;
 	}
 }
@@ -274,6 +277,43 @@ Connection.prototype._deleteStream = function(streamID) {
 		delete this._streams[streamID];
 		this._command("deleteStream", null, streamID);
 	}
+}
+
+Connection.prototype._onUserControlMessage = function(header, message, flow) {
+	const limit = message.length;
+	let cursor = header.consumed;
+	if(limit - cursor < 2)
+		return;
+
+	var eventType = message[cursor] * 256 + message[cursor + 1];
+	cursor += 2;
+
+	switch(eventType)
+	{
+	case TC.TC_USERCONTROL_FLOW_SYNC:
+		this._onFlowSyncMessage(message, cursor, limit, flow);
+		return;
+	}
+}
+
+Connection.prototype._onFlowSyncMessage = function(message, cursor, limit, flow) {
+	if(limit - cursor < 8)
+		return;
+
+	var syncID;
+	var count;
+
+	syncID = message[cursor++]; syncID *= 256;
+	syncID += message[cursor++]; syncID *= 256;
+	syncID += message[cursor++]; syncID *= 256;
+	syncID += message[cursor++];
+
+	count = message[cursor++]; count *= 256;
+	count += message[cursor++]; count *= 256;
+	count += message[cursor++]; count *= 256;
+	count += message[cursor++];
+
+	this._syncManager.sync(syncID, count, flow);
 }
 
 function _onStatusMessage(receiver, target, info) {

@@ -1302,7 +1302,47 @@ RecvFlow.prototype._deliverData = function() {
 	}
 }
 
+class FlowSyncManager {
+	constructor() {
+		this._barriers = {};
+	}
+
+	sync(syncID, count, flow) {
+		const flows = this._barriers[syncID] || [];
+		this._barriers[syncID] = flows;
+
+		flow.paused = true;
+
+		flows.push(flow);
+		if(flows.length >= count)
+		{
+			this._resumeFlows(syncID);
+			return true;
+		}
+
+		return false;
+	}
+
+	reset() {
+		const keys = Object.keys(this._barriers);
+		var each;
+		while((each = keys.shift()))
+			this._resumeFlows(each);
+	}
+
+	close() { this.reset(); }
+
+	_resumeFlows(syncID) {
+		const flows = this._barriers[syncID];
+		var each;
+		while((each = flows.shift()))
+			each.paused = false;
+		delete this._barriers[syncID];
+	}
+}
+
 RTWebSocket.prototype._SendFlow = SendFlow;
 RTWebSocket.prototype._RecvFlow = RecvFlow;
+RTWebSocket.FlowSyncManager = FlowSyncManager;
 
 })();

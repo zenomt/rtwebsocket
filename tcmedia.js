@@ -28,6 +28,12 @@ class com_zenomt_TCMediaDecoder {
 		this.audioController.reset();
 	}
 
+	async audioFlush() {
+		if("configured" == this._audioDecoder?.state)
+			await this._audioDecoder.flush();
+		await this.audioController.flush();
+	}
+
 	// ---
 
 	_onAudioDecoderOutput(output) {
