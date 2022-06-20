@@ -13,6 +13,7 @@ function com_zenomt_TCConnection() {
 	this._openPromiseControl = null;
 	this._streams = {};
 	this._syncManager = new RTWebSocket.FlowSyncManager();
+	this._statusListeners = new Set();
 
 	this.client = {};
 }
@@ -31,6 +32,18 @@ Object.defineProperties(Connection.prototype, {
 
 Connection.prototype.onstatus = function(e) { console.log("Connection.onstatus", e); }
 Connection.prototype.onclose = function() { console.log("Connection.onclose"); }
+
+function _addEventListener(type, listener) {
+	if("netStatus" == type)
+		this._statusListeners.add(listener);
+}
+Connection.prototype.addEventListener = _addEventListener;
+
+function _removeEventListener(type, listener) {
+	if("netStatus" == type)
+		this._statusListeners.delete(listener);
+}
+Connection.prototype.removeEventListener = _removeEventListener;
 
 Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	if(this._rtws)
@@ -95,9 +108,9 @@ Connection.prototype.close = function(isError) {
 	this._syncManager.close();
 
 	if(isError && !this._tcOpen)
-		_onStatusMessage(this, this, { level:"error", code:"NetConnection.Connect.Failed" });
+		_onStatusMessage(this, { level:"error", code:"NetConnection.Connect.Failed" });
 	else
-		_onStatusMessage(this, this, { level:"status", code:"NetConnection.Connect.Closed" });
+		_onStatusMessage(this, { level:"status", code:"NetConnection.Connect.Closed" });
 
 	if(this._openPromiseControl)
 		this._openPromiseControl.reject();
@@ -120,6 +133,8 @@ Connection.prototype.close = function(isError) {
 	this._streams = {};
 	for(const streamID in tmpStreams)
 		tmpStreams[streamID].deleteStream();
+
+	this._statusListeners.clear();
 }
 
 // ---
@@ -149,7 +164,7 @@ Connection.prototype._onRTWSOpen = function(connectPayload) {
 			myself._openPromiseControl = null;
 			myself._tcOpen = true;
 			resolve(...args);
-			_onStatusMessage(myself, myself, ...args);
+			_onStatusMessage(myself, ...args);
 		}
 	}, "connect", ...connectPayload);
 }
@@ -250,7 +265,7 @@ Connection.prototype._onControlCommandMessage = function(command, tid, arg, ...a
 		return;
 
 	case "onStatus":
-		_onStatusMessage(this, this, ...args);
+		_onStatusMessage(this, ...args);
 		return;
 
 	default:
@@ -316,12 +331,19 @@ Connection.prototype._onFlowSyncMessage = function(message, cursor, limit, flow)
 	this._syncManager.sync(syncID, count, flow);
 }
 
-function _onStatusMessage(receiver, target, info) {
-	if(receiver.onstatus)
+function _onStatusMessage(target, info) {
+	const event = { type:"netStatus", target, bubbles:false, cancelable:false, eventPhase:2, info, detail:info };
+
+	if(target.onstatus)
 	{
-		const event = { type:"netStatus", target, bubbles:false, cancelable:false, eventPhase:2, info };
-		try { receiver.onstatus(event); }
-		catch(e) { console.log("exception calling onstatus", receiver, event, e); }
+		try { target.onstatus(event); }
+		catch(e) { console.log("exception calling onstatus", target, event, e); }
+	}
+
+	for(let each of target._statusListeners)
+	{
+		try { each(event); }
+		catch(e) { console.log("exception dispatching netStatus event", event, e); }
 	}
 }
 
@@ -336,6 +358,7 @@ function Stream(owner, streamID) {
 	this._audioSend = null;
 	this._dataSend = null;
 	this._recvFlows = [];
+	this._statusListeners = new Set();
 
 	this.client = {};
 }
@@ -346,6 +369,9 @@ Object.defineProperties(Stream.prototype, {
 Stream.prototype.onstatus = function(e) { console.log("Stream.onstatus", e); }
 Stream.prototype.onaudio = function(header, message) { console.log("Stream.onaudio", header); }
 Stream.prototype.onvideo = function(header, message) { console.log("Stream.onaudio", header); }
+
+Stream.prototype.addEventListener = _addEventListener;
+Stream.prototype.removeEventListener = _removeEventListener;
 
 Stream.prototype.publish = function(...args) {
 	if(!this.isOpen)
@@ -412,6 +438,8 @@ Stream.prototype.deleteStream = function() {
 	var flow;
 	while((flow = this._recvFlows.shift()))
 		flow.close(0, "deleting stream");
+
+	this._statusListeners.clear();
 }
 
 Stream.prototype.receiveAudio = function(flag, ...args) {
@@ -467,7 +495,7 @@ Stream.prototype._onFlowComplete = function(flow) {
 
 Stream.prototype._onCommandMessage = function(command, tid, arg, ...args) {
 	if("onStatus" == command)
-		_onStatusMessage(this, this, ...args);
+		_onStatusMessage(this, ...args);
 }
 
 Stream.prototype._onStreamMessage = function(header, message) {

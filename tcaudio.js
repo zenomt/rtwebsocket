@@ -93,10 +93,11 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 
 	isOverbuffered() {
 		const bufferLength = this.bufferLength;
+		const jitterFactor = Math.max(this._lastAppendedDuration, 0.040);
 
 		return ( (this._lastAppendedDuration > 0)
-		      && (bufferLength > this._bufferTime + 4 * this._lastAppendedDuration)
-		      && (this._cachedMinimumBufferLength > this._bufferTime + 3 * this._lastAppendedDuration)
+		      && (bufferLength > this._bufferTime + 2 * jitterFactor)
+		      && (this._cachedMinimumBufferLength > this._bufferTime + jitterFactor)
 		);
 	}
 
@@ -133,7 +134,8 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 	_sendOnStatusMessage(code, level) {
 		if(this.onstatus)
 		{
-			const event = { type:"netStatus", target:this, bubbles:false, cancelable:false, eventPhase:2, info: { code, level } };
+			const info = { code, level };
+			const event = { type:"netStatus", target:this, bubbles:false, cancelable:false, eventPhase:2, info, detail:info };
 			try { this.onstatus(event); }
 			catch(e) { console.log("exception calling onstatus", this, event, e); }
 		}

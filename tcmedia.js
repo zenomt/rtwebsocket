@@ -4,6 +4,7 @@
 class com_zenomt_TCMediaDecoder {
 	constructor(netStream) {
 		this.audioController = new com_zenomt_SimpleAudioController();
+		this._netStream = netStream;
 		this._videoFrames = [];
 		this._audioFrameCount = 0;
 		this._audioFrameSkipThresh = 12;
@@ -18,6 +19,9 @@ class com_zenomt_TCMediaDecoder {
 		netStream.onvideo = this._onVideoMessage.bind(this);
 		// TODO data, need to rework netStream data
 
+		this._boundNetStatusCallback = this._onNetStatus.bind(this);
+		netStream.addEventListener("netStatus", this._boundNetStatusCallback);
+
 		this.ondrawframe = function(frame) {}
 	}
 
@@ -26,6 +30,13 @@ class com_zenomt_TCMediaDecoder {
 		this._videoDecoder.close(); this._videoDecoder = null;
 		this._flushVideoFrames();
 		this.audioController.reset();
+
+		this._netStream.removeEventListener("netStatus", this._boundNetStatusCallback);
+		this._boundNetStatusCallback = null;
+
+		this._netStream.onaudio = null;
+		this._netStream.onvideo = null;
+		this._netStream = null;
 	}
 
 	async audioFlush() {
@@ -34,7 +45,22 @@ class com_zenomt_TCMediaDecoder {
 		await this.audioController.flush();
 	}
 
+	async videoFlush() {
+		if("configured" == this._videoDecoder?.state)
+			await this._videoDecoder.flush();
+	}
+
 	// ---
+
+	_onNetStatus(event) {
+		switch(event.detail.code)
+		{
+		case "NetStream.Play.UnpublishNotify":
+			this.audioFlush();
+			// not videoFlush because video frames aren't guaranteed to all be delivered yet
+			break;
+		}
+	}
 
 	_onAudioDecoderOutput(output) {
 		this.audioController.appendAudioData(output);
