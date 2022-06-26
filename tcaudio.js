@@ -20,6 +20,7 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		this._lastAppendedDuration = 0;
 
 		this._minimumBufferLengthNumberOfBuckets = 8;
+		this._minimumBufferLengthWindowDuration = 8;
 		this.resetMinimumBufferLength();
 
 		this.port.onmessage = (event) => { this._onMessage(event); };
@@ -82,7 +83,7 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 	get lastAppendedDuration() { return this._lastAppendedDuration; }
 
 	resetMinimumBufferLength(windowDuration) {
-		windowDuration = Number(windowDuration) || 8;
+		windowDuration = Number(windowDuration) || this._minimumBufferLengthWindowDuration;
 		this._minimumBufferLengthWindowDuration = windowDuration;
 		this._minimumBufferLengthBucketDuration = windowDuration / this._minimumBufferLengthNumberOfBuckets;
 		this._minimums = [{ time:-Infinity, minimum:Infinity }];
@@ -177,6 +178,7 @@ class com_zenomt_SimpleAudioController {
 		this._pipelinePending = false;
 		this._savedTimestamp = undefined;
 		this._lastAppendedDuration = 0;
+		this._minimumBufferLengthWindowDuration = 8;
 	}
 
 	get gain() { return this._gain; }
@@ -265,6 +267,13 @@ class com_zenomt_SimpleAudioController {
 		return rv;
 	}
 
+	resetMinimumBufferLength(windowDuration) {
+		windowDuration = Number(windowDuration) || this._minimumBufferLengthWindowDuration;
+		this._minimumBufferLengthWindowDuration = windowDuration;
+		if(this._tcSourceNode)
+			this._tcSourceNode.resetMinimumBufferLength(windowDuration);
+	}
+
 	get lastAppendedDuration() { return this._lastAppendedDuration; }
 
 	get audioSourceNode() { return this._tcSourceNode; }
@@ -332,6 +341,7 @@ class com_zenomt_SimpleAudioController {
 			this._tcSourceNode = new com_zenomt_TCAudioSourceNode(this._context, channels);
 			this._tcSourceNode.onstatus = (event) => this._onMessage(event);
 			this._tcSourceNode.bufferTime = this._bufferTime;
+			this._tcSourceNode.resetMinimumBufferLength(this._minimumBufferLengthWindowDuration);
 
 			this._gainNode = this._context.createGain();
 			this._gainNode.gain.value = this._gain;

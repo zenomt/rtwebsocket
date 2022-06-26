@@ -29,7 +29,6 @@ Object.defineProperties(Connection.prototype, {
 	isOpen: { get: function() { return this._userOpen && this._tcOpen; }, enumerable: true }
 });
 
-
 Connection.prototype.onstatus = function(e) { console.log("Connection.onstatus", e); }
 Connection.prototype.onclose = function() { console.log("Connection.onclose"); }
 
@@ -53,10 +52,7 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	argObject.objectEncoding = argObject.objectEncoding || 0;
 	argObject.tcUrl = argObject.tcUrl || wsurl;
 	if((!argObject.app) && ("" != argObject.app))
-	{
-		const url = new URL(argObject.tcUrl);
-		argObject.app = ("/" == url.pathname[0]) ? url.pathname.substr(1) : url.pathname;
-	}
+		argObject.app = Connection.appFromTcUrl(argObject.tcUrl);
 
 	// deep copy, ensures AMF0 compatible early
 	const connectPayload = AMF0.decodeMany(AMF0.encodeMany(argObject, ...args));
@@ -329,6 +325,38 @@ Connection.prototype._onFlowSyncMessage = function(message, cursor, limit, flow)
 	count += message[cursor++];
 
 	this._syncManager.sync(syncID, count, flow);
+}
+
+Connection.appFromTcUrl = function(tcUrl) {
+	const url = Connection.URIParse(tcUrl);
+	url.path = url.path || "";
+	return ("/" == url.path[0]) ? url.path.substr(1) : url.path;
+}
+
+// needed because builtin URL doesn't work correctly for rtmp/rtmps/rtmfp URIs in some browsers.
+Connection.URIParse = function(uri) {
+	const rv = {uri};
+	const parts = new RegExp("^(?:([^:/?#]+):)?(?:([^?#]*))?(?:\\?([^#]*))?(?:#(.*))?").exec(uri || "");
+	rv.scheme = parts[1];
+	rv.hierpart = parts[2] || "";
+	rv.query = parts[3];
+	rv.fragment = parts[4];
+
+	const hierparts = new RegExp("^(?://([^/]*))?(?:(.*))").exec(rv.hierpart || "");
+	rv.authority = hierparts[1];
+	rv.path = hierparts[2];
+
+	const authparts = new RegExp("^(?:([^@]*)@)?(?:(.*))").exec(rv.authority || "");
+	rv.userinfo = authparts[1];
+	rv.hostinfo = authparts[2];
+
+	const hostparts = new RegExp("^(?:(\\[[0-9a-fA-Fv:]*\\]))?(?:([^:]*))?(?::([0-9]+))?").exec(rv.hostinfo || "");
+	rv.host = hostparts[1] || hostparts[2];
+	rv.port = hostparts[3];
+
+	rv.origin = (rv.scheme && rv.hostinfo) ? rv.scheme + "://" + rv.hostinfo : undefined;;
+
+	return rv;
 }
 
 function _onStatusMessage(target, info) {
