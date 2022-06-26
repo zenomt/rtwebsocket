@@ -31,7 +31,7 @@ Web IDL documentation for the reference implementation is in [API.md][].
 License
 =======
 
-Licensed under the Apache License, Version 2.0.
+Licensed under the MIT License.
 
 
   [rfc7016]:     https://tools.ietf.org/html/rfc7016
