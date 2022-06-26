@@ -7,10 +7,11 @@ class com_zenomt_TCMediaDecoder {
 		this._netStream = netStream;
 		this._videoFrames = [];
 		this._audioFrameCount = 0;
-		this._audioFrameSkipThresh = 12;
+		this.audioFrameSkipThresh = 12;
 		this._lastAudioTimestamp = -Infinity;
 		this._animationFrameRequested = false;
 		this._lastAudioType = -1;
+		this._audioAppendCount = 0;
 
 		this._audioDecoder = new AudioDecoder({ output:this._onAudioDecoderOutput.bind(this), error:this._onAudioDecoderError.bind(this) });
 		this._videoDecoder = new VideoDecoder({ output:this._onVideoDecoderOutput.bind(this), error:this._onVideoDecoderError.bind(this) });
@@ -23,6 +24,10 @@ class com_zenomt_TCMediaDecoder {
 		netStream.addEventListener("netStatus", this._boundNetStatusCallback);
 
 		this.ondrawframe = function(frame) {}
+	}
+
+	drawFramesToCanvas(canvas) {
+		this.ondrawframe = (frame) => com_zenomt_TCMediaDecoder.displayFrameOnCanvas(frame, canvas);
 	}
 
 	close() {
@@ -50,6 +55,35 @@ class com_zenomt_TCMediaDecoder {
 			await this._videoDecoder.flush();
 	}
 
+	static displayFrameOnCanvas(frame, canvas) {
+		const frameAspect = frame.displayWidth / frame.displayHeight;
+		const canvasAspect = canvas.width / canvas.height;
+
+		var dx, dy;
+		var dWidth, dHeight;
+
+		if(frameAspect >= canvasAspect) // frame is wider than canvas
+		{
+			const adjustFactor = frame.displayWidth / canvas.width;
+			dWidth = canvas.width;
+			dHeight = frame.displayHeight / adjustFactor;
+			dx = 0;
+			dy = (canvas.height - dHeight) / 2;
+		}
+		else
+		{
+			const adjustFactor = frame.displayHeight / canvas.height;
+			dHeight = canvas.height;
+			dWidth = frame.displayWidth / adjustFactor;
+			dx = (canvas.width - dWidth) / 2;
+			dy = 0;
+		}
+
+		const ctx = canvas.getContext("2d");
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+		ctx.drawImage(frame, dx, dy, dWidth, dHeight);
+	}
+
 	// ---
 
 	_onNetStatus(event) {
@@ -65,6 +99,7 @@ class com_zenomt_TCMediaDecoder {
 	_onAudioDecoderOutput(output) {
 		this.audioController.appendAudioData(output);
 		output.close();
+		this._audioAppendCount++;
 	}
 
 	_onAudioDecoderError(e) { console.log("audio decoder error", e); }
@@ -139,7 +174,7 @@ class com_zenomt_TCMediaDecoder {
 
 		const payload = message.subarray(header.payloadOffset);
 
-		if((message[0] != this._lastAudioType) || (com_zenomt_TCMessage.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType))
+		if((message[header.consumed] != this._lastAudioType) || (com_zenomt_TCMessage.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType))
 		{
 			var config;
 			switch(header.codec)
@@ -173,7 +208,7 @@ class com_zenomt_TCMediaDecoder {
 			config.numberOfChannels = header.numberOfChannels;
 			config.sampleRate = header.sampleRate;
 
-			this._lastAudioType = message[0];
+			this._lastAudioType = message[header.consumed];
 
 			try { this._audioDecoder.configure(config); }
 			catch(e) {
@@ -194,17 +229,20 @@ class com_zenomt_TCMediaDecoder {
 		const bufferLength = this.audioController.bufferLength;
 		const minimumBufferLength = this.audioController.audioSourceNode?.minimumBufferLength || 0;
 
-		if(this.audioController.audioSourceNode?.isOverbuffered() && (this._audioFrameCount >= this._audioFrameSkipThresh))
+		if(this.audioController.audioSourceNode?.isOverbuffered() && (this._audioFrameCount >= this.audioFrameSkipThresh))
 		{
 			this._audioFrameCount = 0;
 			console.log("dropping encoded audio frame because delay is high: " + this.audioController.bufferLength + " min: " + minimumBufferLength, header.timestamp);
 			return;
 		}
 
-		if( (header.timestamp > this._lastAudioTimestamp + this.audioController.lastAppendedDuration * 1.5 * 1000)
+		if( ((header.timestamp > this._lastAudioTimestamp + this.audioController.lastAppendedDuration * 1.5 * 1000) && this._audioAppendCount)
 		 || (header.timestamp < this._lastAudioTimestamp)
 		)
+		{
 			this._audioDecoder.flush();
+			this._audioAppendCount = 0;
+		}
 		this._lastAudioTimestamp = header.timestamp;
 
 		const encodedChunk = new EncodedAudioChunk({
