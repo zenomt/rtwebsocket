@@ -11,7 +11,8 @@ class com_zenomt_TCMediaDecoder {
 		this._lastAudioTimestamp = -Infinity;
 		this._animationFrameRequested = false;
 		this._lastAudioType = -1;
-		this._audioAppendCount = 0;
+		this._audioIsResyncing = false;
+		this._audioNeedsResync = false;
 
 		this._audioDecoder = new AudioDecoder({ output:this._onAudioDecoderOutput.bind(this), error:this._onAudioDecoderError.bind(this) });
 		this._videoDecoder = new VideoDecoder({ output:this._onVideoDecoderOutput.bind(this), error:this._onVideoDecoderError.bind(this) });
@@ -99,7 +100,6 @@ class com_zenomt_TCMediaDecoder {
 	_onAudioDecoderOutput(output) {
 		this.audioController.appendAudioData(output);
 		output.close();
-		this._audioAppendCount++;
 	}
 
 	_onAudioDecoderError(e) { console.log("audio decoder error", e); }
@@ -226,23 +226,19 @@ class com_zenomt_TCMediaDecoder {
 		if("configured" != this._audioDecoder.state)
 			return;
 
-		const bufferLength = this.audioController.bufferLength;
-		const minimumBufferLength = this.audioController.audioSourceNode?.minimumBufferLength || 0;
-
 		if(this.audioController.audioSourceNode?.isOverbuffered() && (this._audioFrameCount >= this.audioFrameSkipThresh))
 		{
+			const bufferLength = this.audioController.bufferLength;
+			const minimumBufferLength = this.audioController.audioSourceNode?.minimumBufferLength || 0;
 			this._audioFrameCount = 0;
 			console.log("dropping encoded audio frame because delay is high: " + this.audioController.bufferLength + " min: " + minimumBufferLength, header.timestamp);
 			return;
 		}
 
-		if( ((header.timestamp > this._lastAudioTimestamp + this.audioController.lastAppendedDuration * 1.5 * 1000) && this._audioAppendCount)
+		if( (header.timestamp > this._lastAudioTimestamp + this.audioController.lastAppendedDuration * 1.5 * 1000)
 		 || (header.timestamp < this._lastAudioTimestamp)
 		)
-		{
-			this._audioDecoder.flush();
-			this._audioAppendCount = 0;
-		}
+			this._resyncAudio();
 		this._lastAudioTimestamp = header.timestamp;
 
 		const encodedChunk = new EncodedAudioChunk({
@@ -288,6 +284,21 @@ class com_zenomt_TCMediaDecoder {
 					data: payload
 				}));
 			}
+		}
+	}
+
+	async _resyncAudio() {
+		if(this._audioIsResyncing)
+			this._audioNeedsResync = true;
+		else
+		{
+			this._audioNeedsResync = false;
+			this._audioIsResyncing = true;
+			if("configured" == this._audioDecoder?.state)
+				await this._audioDecoder.flush();
+			this._audioIsResyncing = false;
+			if(this._audioNeedsResync)
+				this._resyncAudio();
 		}
 	}
 }
