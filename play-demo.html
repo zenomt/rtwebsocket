@@ -51,8 +51,6 @@ function onDisconnected(e) {
 }
 
 async function onConnected(info) {
-	myConnectionID = info.connectionID;
-
 	channelStream = await connection.createStream();
 	mediaDecoder = new com_zenomt_TCMediaDecoder(channelStream);
 	mediaDecoder.drawFramesToCanvas(video);
