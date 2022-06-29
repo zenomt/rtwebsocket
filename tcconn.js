@@ -336,25 +336,25 @@ Connection.appFromTcUrl = function(tcUrl) {
 // needed because builtin URL doesn't work correctly for rtmp/rtmps/rtmfp URIs in some browsers.
 Connection.URIParse = function(uri) {
 	const rv = {uri};
-	const parts = new RegExp("^(?:([^:/?#]+):)?(?:([^?#]*))?(?:\\?([^#]*))?(?:#(.*))?").exec(uri || "");
-	rv.scheme = parts[1];
-	rv.hierpart = parts[2] || "";
-	rv.query = parts[3];
-	rv.fragment = parts[4];
+	const parts = new RegExp("^(([^:/?#]+):)?([^?#]*)?(\\?([^#]*))?(#(.*))?").exec(uri || "");
+	rv.scheme = parts[2];
+	rv.hierpart = parts[3] || "";
+	rv.query = parts[5];
+	rv.fragment = parts[7];
 
-	const hierparts = new RegExp("^(?://([^/]*))?(?:(.*))").exec(rv.hierpart || "");
-	rv.authority = hierparts[1];
-	rv.path = hierparts[2];
+	const hierparts = new RegExp("^(//([^/]*))?(.*)").exec(rv.hierpart || "");
+	rv.authority = hierparts[2];
+	rv.path = hierparts[3];
 
-	const authparts = new RegExp("^(?:([^@]*)@)?(?:(.*))").exec(rv.authority || "");
-	rv.userinfo = authparts[1];
-	rv.hostinfo = authparts[2];
+	const authparts = new RegExp("^(([^@]*)@)?(.*)").exec(rv.authority || "");
+	rv.userinfo = authparts[2];
+	rv.hostinfo = authparts[3];
 
-	const hostparts = new RegExp("^(?:(\\[[0-9a-fA-Fv:]*\\]))?(?:([^:]*))?(?::([0-9]+))?").exec(rv.hostinfo || "");
-	rv.host = hostparts[1] || hostparts[2];
-	rv.port = hostparts[3];
+	const hostparts = new RegExp("^((\\[[0-9a-fA-Fv:]*\\]))?([^:]*)?(:([0-9]+))?").exec(rv.hostinfo || "");
+	rv.host = hostparts[2] || hostparts[3];
+	rv.port = hostparts[5];
 
-	rv.origin = (rv.scheme && rv.hostinfo) ? rv.scheme + "://" + rv.hostinfo : undefined;;
+	rv.origin = (rv.scheme && rv.hostinfo) ? rv.scheme + "://" + rv.hostinfo : undefined;
 
 	return rv;
 }
