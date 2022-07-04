@@ -13,9 +13,13 @@ class com_zenomt_TCMediaDecoder {
 		this._lastAudioType = -1;
 		this._audioIsResyncing = false;
 		this._audioNeedsResync = false;
+		this._seenAudio = false;
+		this._sendingSilence = false;
+		this._audioError = false;
+		this._seenVideoKeyframe = false;
 
-		this._audioDecoder = new AudioDecoder({ output:this._onAudioDecoderOutput.bind(this), error:this._onAudioDecoderError.bind(this) });
-		this._videoDecoder = new VideoDecoder({ output:this._onVideoDecoderOutput.bind(this), error:this._onVideoDecoderError.bind(this) });
+		this._makeAudioDecoder();
+		this._makeVideoDecoder();
 
 		netStream.onaudio = this._onAudioMessage.bind(this);
 		netStream.onvideo = this._onVideoMessage.bind(this);
@@ -52,6 +56,7 @@ class com_zenomt_TCMediaDecoder {
 	}
 
 	async videoFlush() {
+		this._seenVideoKeyframe = false;
 		if("configured" == this._videoDecoder?.state)
 			await this._videoDecoder.flush();
 	}
@@ -87,12 +92,24 @@ class com_zenomt_TCMediaDecoder {
 
 	// ---
 
+	_makeVideoDecoder() {
+		this._videoDecoder = new VideoDecoder({ output:this._onVideoDecoderOutput.bind(this), error:this._onVideoDecoderError.bind(this) });
+	}
+
+	_makeAudioDecoder() {
+		this._audioDecoder = new AudioDecoder({ output:this._onAudioDecoderOutput.bind(this), error:this._onAudioDecoderError.bind(this) });
+	}
+
 	_onNetStatus(event) {
 		switch(event.detail.code)
 		{
 		case "NetStream.Play.UnpublishNotify":
 			this.audioFlush();
 			// not videoFlush because video frames aren't guaranteed to all be delivered yet
+			break;
+		case "NetStream.Play.PublishNotify":
+			this._seenAudio = false;
+			this._sendingSilence = false;
 			break;
 		}
 	}
@@ -102,7 +119,13 @@ class com_zenomt_TCMediaDecoder {
 		output.close();
 	}
 
-	_onAudioDecoderError(e) { console.log("audio decoder error", e); }
+	_onAudioDecoderError(e) {
+		console.log("audio decoder error", e);
+		this._audioError = true;
+		if("closed" != this._audioDecoder.state)
+			this._audioDecoder.close();
+		this._makeAudioDecoder();
+	}
 
 	_onVideoDecoderOutput(output) {
 		if(this._videoFrames.length && (output.timestamp < this._videoFrames[this._videoFrames.length - 1].timestamp))
@@ -119,7 +142,12 @@ class com_zenomt_TCMediaDecoder {
 		}
 	}
 
-	_onVideoDecoderError() { console.log("video decoder error", e); }
+	_onVideoDecoderError(e) {
+		console.log("video decoder error", e);
+		if("closed" != this._videoDecoder.state)
+			this._videoDecoder.close();
+		this._makeVideoDecoder();
+	}
 
 	_flushVideoFrames() {
 		var each;
@@ -166,9 +194,11 @@ class com_zenomt_TCMediaDecoder {
 	}
 
 	_onAudioMessage(header, message) {
+		this._seenAudio = true;
+
 		if(header.silence)
 		{
-			this.audioController.silence(header.timestamp / 1000.0);
+			this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0));
 			return;
 		}
 
@@ -180,10 +210,10 @@ class com_zenomt_TCMediaDecoder {
 			switch(header.codec)
 			{
 			case com_zenomt_TCMessage.TC_AUDIO_CODEC_AAC:
-				if(com_zenomt_TCMessage.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType)
+				if((com_zenomt_TCMessage.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType) && payload.length)
 				{
 					config = { codec:"mp4a.40.2", description:payload };
-					header.numberOfChannels = 2;
+					header.numberOfChannels = (payload[1] & 0x78) >> 3; // shouldn't be needed for mp4a.40.2, but Chrome needs it to match.
 				}
 				else
 					return;
@@ -212,16 +242,19 @@ class com_zenomt_TCMediaDecoder {
 
 			try { this._audioDecoder.configure(config); }
 			catch(e) {
-				console.log("TCMediaDecoder error audioDecoder.configure(), setting silence", e, config);
-				this.audioController.silence(header.timestamp / 1000.0);
-				this._audioDecoder.close();
-				this._audioDecoder = new AudioDecoder({ output:this._onAudioDecoderOutput.bind(this), error:this._onAudioDecoderError.bind(this) });
+				console.log("TCMediaDecoder error audioDecoder.configure()", config);
+				this._onAudioDecoderError(e);
 				return;
 			}
+
+			this._audioError = false;
 
 			if(header.isAAC)
 				return; // this was a config message
 		}
+
+		if(this._audioError)
+			this.audioController.silence(header.timestamp / 1000.0);
 
 		if("configured" != this._audioDecoder.state)
 			return;
@@ -260,6 +293,7 @@ class com_zenomt_TCMediaDecoder {
 				if(payload.length < 2)
 				{
 					this._videoDecoder.reset();
+					this._seenVideoKeyframe = false;
 					return;
 				}
 
@@ -273,16 +307,34 @@ class com_zenomt_TCMediaDecoder {
 					console.log("videoDecoder.configure()", e);
 					this._videoDecoder.reset();
 				}
+				this._seenVideoKeyframe = false;
 			}
 			else if(("configured" == this._videoDecoder.state) && (com_zenomt_TCMessage.TC_VIDEO_AVCPACKET_NALU == header.avcPacketType))
 			{
 				if(com_zenomt_TCMessage.TC_VIDEO_FRAMETYPE_COMMAND == header.frametype)
 					return;
-				this._videoDecoder.decode(new EncodedVideoChunk({
-					type: (com_zenomt_TCMessage.TC_VIDEO_FRAMETYPE_IDR == header.frametype) ? "key" : "delta",
-					timestamp: ((header.presentationTime < 0) ? 0 : header.presentationTime) * 1000, // ms -> µs
-					data: payload
-				}));
+
+				const type = (com_zenomt_TCMessage.TC_VIDEO_FRAMETYPE_IDR == header.frametype) ? "key" : "delta";
+				if("key" == type)
+					this._seenVideoKeyframe = true;
+				if(!this._seenVideoKeyframe)
+					return;
+
+				if((!this._seenAudio) && (!this._sendingSilence) && (this._videoFrames.length > 2))
+				{
+					// get video moving. if audio frames come along, they'll override the silence.
+					this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0));
+					this._sendingSilence = true;
+				}
+
+				try {
+					this._videoDecoder.decode(new EncodedVideoChunk({
+						type,
+						timestamp: ((header.presentationTime < 0) ? 0 : header.presentationTime) * 1000, // ms -> µs
+						data: payload
+					}));
+				}
+				catch(e) { this._onVideoDecoderError(e); }
 			}
 		}
 	}

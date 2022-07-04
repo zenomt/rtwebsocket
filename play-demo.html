@@ -26,6 +26,7 @@ function doPlay() {
 
 function doCloseStream() {
 	channelStream?.closeStream();
+	mediaDecoder?.audioFlush();
 }
 
 function onDisconnected(e) {
@@ -64,10 +65,6 @@ function doConnect() {
 	if(!server_uri.value)
 		return;
 
-	connection = new com_zenomt_TCConnection();
-
-	connection.onclose = onDisconnected;
-
 	button_connect.disabled = true;
 	button_disconnect.disabled = false;
 	server_uri.disabled = true;
@@ -75,6 +72,8 @@ function doConnect() {
 	app_override.disabled = true;
 	auth_token.disabled = true;
 
+	connection = new com_zenomt_TCConnection();
+	connection.onclose = onDisconnected;
 	connection.connect(server_uri.value, {
 			tcUrl:tcurl_override.value || server_uri.value,
 			app:app_override.value || undefined,
