@@ -19,9 +19,12 @@ function onResize() {
 	video.height = Math.floor(video.parentElement.clientHeight);
 }
 
-function doPlay() {
+function doPlay(mode) {
 	if(channelStream && stream_name.value)
+	{
+		mediaDecoder.audioFrameSkipThresh = ("vod" == mode) ? Infinity : 12; // disable catch-up for vod
 		channelStream.play(stream_name.value);
+	}
 }
 
 function doCloseStream() {
@@ -45,6 +48,7 @@ function onDisconnected(e) {
 	app_override.disabled = false;
 	auth_token.disabled = false;
 	button_play.disabled = true;
+	button_play_vod.disabled = true;
 	button_closestream.disabled = true;
 
 	mediaDecoder?.close();
@@ -58,6 +62,7 @@ async function onConnected(info) {
 	mediaDecoder.audioController.onstatus = (e) => console.log("audioController.onstatus", e.detail, e);
 
 	button_play.disabled = false;
+	button_play_vod.disabled = false;
 	button_closestream.disabled = false;
 }
 
@@ -114,7 +119,7 @@ function onLoaded() {
 	<h1>Play Stream Demo</h1>
 	<table cellpadding="3">
 	<tr> <td>Server</td><td><input type="text" size="48" id="server_uri" placeholder="websocket url" value="ws://localhost:8080/live" /> <input type="text" size="64" id="auth_token" placeholder="authentication token" /> </td> </tr>
-	<tr> <td>Overrides</td> <td><input type="text" size="48" id="tcurl_override" title="tcUrl override" /> <input type="text" size="48" id="app_override" title="app override" /> </td> </tr>
+	<tr> <td>Overrides</td> <td><input type="text" size="48" id="tcurl_override" title="tcUrl override" /> <input type="text" size="64" id="app_override" title="app override" /> </td> </tr>
 	<tr>
 		<td></td>
 		<td>
@@ -126,7 +131,8 @@ function onLoaded() {
 		<td>Stream</td>
 		<td>
 			<input type="text" size="80" id="stream_name" placeholder="stream name" value="live"/>
-			<button type="button" id="button_play" onclick="doPlay()">Play</button>
+			<button type="button" id="button_play" onclick="doPlay('live')">Play Live</button>
+			<button type="button" id="button_play_vod" onclick="doPlay('vod')">Play Buffered</button>
 			<button type="button" id="button_closestream" onclick="doCloseStream()">Close Stream</button>
 		</td>
 	</tr>
