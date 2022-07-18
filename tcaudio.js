@@ -86,8 +86,8 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		windowDuration = Number(windowDuration) || this._minimumBufferLengthWindowDuration;
 		this._minimumBufferLengthWindowDuration = windowDuration;
 		this._minimumBufferLengthBucketDuration = windowDuration / this._minimumBufferLengthNumberOfBuckets;
-		this._minimums = [{ time:-Infinity, minimum:Infinity }];
-		this._cachedMinimumBufferLength = Infinity;
+		this._minimums = [{ time:window.performance.now() / 1000.0, minimum:0 }];
+		this._cachedMinimumBufferLength = 0;
 	}
 
 	get minimumBufferLength() { return this._cachedMinimumBufferLength; }

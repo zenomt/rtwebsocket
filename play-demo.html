@@ -22,7 +22,18 @@ function onResize() {
 function doPlay(mode) {
 	if(channelStream && stream_name.value)
 	{
-		mediaDecoder.audioFrameSkipThresh = ("vod" == mode) ? Infinity : 12; // disable catch-up for vod
+		if("vod" == mode)
+		{
+			mediaDecoder.audioFrameSkipThresh = 24;
+			mediaDecoder.audioController.bufferTime = 0.5;
+			mediaDecoder.audioController.resetMinimumBufferLength(120);
+		}
+		else
+		{
+			mediaDecoder.audioFrameSkipThresh = 12;
+			mediaDecoder.audioController.bufferTime = 0.0;
+			mediaDecoder.audioController.resetMinimumBufferLength(8);
+		}
 		channelStream.play(stream_name.value);
 	}
 }
@@ -106,6 +117,9 @@ function onLoaded() {
 
 	server_uri.onchange = server_uri.oninput = tcurl_override.onchange = tcurl_override.oninput = populateOverrides;
 	populateOverrides();
+
+	// in case we're being relayed through rtmfp, try to hasten switch to new address
+	navigator.connection?.addEventListener("change", (_) => { try { connection?.command("ping"); } catch(_) {} });
 }
 
 </script>
