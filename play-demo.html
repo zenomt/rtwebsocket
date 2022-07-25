@@ -24,17 +24,18 @@ function doPlay(mode) {
 	{
 		if("vod" == mode)
 		{
-			mediaDecoder.audioFrameSkipThresh = 24;
+			mediaDecoder.audioFrameSkipThresh = 100;
 			mediaDecoder.audioController.bufferTime = 0.5;
 			mediaDecoder.audioController.resetMinimumBufferLength(120);
+			channelStream.play(stream_name.value, { audioLifetime:3, finishByMargin:0.5 });
 		}
 		else
 		{
 			mediaDecoder.audioFrameSkipThresh = 12;
 			mediaDecoder.audioController.bufferTime = 0.0;
 			mediaDecoder.audioController.resetMinimumBufferLength(8);
+			channelStream.play(stream_name.value, { audioLifetime:0.25 });
 		}
-		channelStream.play(stream_name.value);
 	}
 }
 
