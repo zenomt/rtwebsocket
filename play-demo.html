@@ -25,7 +25,7 @@ function doPlay(mode) {
 		if("vod" == mode)
 		{
 			mediaDecoder.audioFrameSkipThresh = 100;
-			mediaDecoder.audioController.bufferTime = 0.5;
+			mediaDecoder.audioController.bufferTime = 0.50;
 			mediaDecoder.audioController.resetMinimumBufferLength(120);
 			channelStream.play(stream_name.value, { audioLifetime:3, finishByMargin:0.5 });
 		}
@@ -111,6 +111,22 @@ function populateOverrides() {
 	app_override.placeholder = com_zenomt_TCConnection.appFromTcUrl(tcurl_override.value || server_uri.value);
 }
 
+function displayStats() {
+	const ctx = stats.getContext('2d');
+	ctx.font = "14px monaco, monospace";
+	ctx.fillStyle = "hsl(120, 100%, 60%)";
+	ctx.clearRect(0, 0, stats.width, stats.height);
+	var vcursor = 20;
+	const vstep = 18;
+	var minBuffer = mediaDecoder?.audioController.audioSourceNode?.minimumBufferLength || 0;
+	var maxBuffer = mediaDecoder?.audioController.audioSourceNode?.maximumBufferLength || 0;
+	ctx.fillText("Time:    " + (mediaDecoder?.audioController.currentTime.toFixed(2) || "0.00"), 10, vcursor); vcursor += vstep;
+	ctx.fillText("Buffer:  " + (mediaDecoder?.audioController.bufferLength.toFixed(3) || "0.000"), 10, vcursor); vcursor += vstep;
+	ctx.fillText("Minimum: " + minBuffer.toFixed(3), 10, vcursor); vcursor += vstep;
+	ctx.fillText("Maximum: " + maxBuffer.toFixed(3), 10, vcursor); vcursor += vstep;
+	ctx.fillText("Jitter:  " + (maxBuffer - minBuffer).toFixed(3), 10, vcursor); vcursor += vstep;
+}
+
 function onLoaded() {
 	window.addEventListener("resize", onResize);
 	onDisconnected();
@@ -121,6 +137,8 @@ function onLoaded() {
 
 	// in case we're being relayed through rtmfp, try to hasten switch to new address
 	navigator.connection?.addEventListener("change", (_) => { try { connection?.command("ping"); } catch(_) {} });
+
+	setInterval(displayStats, 125);
 }
 
 </script>
@@ -145,7 +163,7 @@ function onLoaded() {
 	<tr>
 		<td>Stream</td>
 		<td>
-			<input type="text" size="80" id="stream_name" placeholder="stream name" value="live"/>
+			<input type="text" size="40" id="stream_name" placeholder="stream name" value="live"/>
 			<button type="button" id="button_play" onclick="doPlay('live')">Play Live</button>
 			<button type="button" id="button_play_vod" onclick="doPlay('vod')">Play Buffered</button>
 			<button type="button" id="button_closestream" onclick="doCloseStream()">Close Stream</button>
@@ -156,7 +174,8 @@ function onLoaded() {
 </div>
 
 <div style="width: 100%; overflow:hidden;">
-	<canvas id="video"></canvas>
+	<canvas id="stats" width="200px" height="105px" style="position: absolute; background-color: rgba(0,0,0,0.5); z-index:2"></canvas>
+	<canvas id="video" style="z-index:1"></canvas>
 </div>
 
 </body>

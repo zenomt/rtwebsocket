@@ -86,11 +86,13 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		windowDuration = Number(windowDuration) || this._minimumBufferLengthWindowDuration;
 		this._minimumBufferLengthWindowDuration = windowDuration;
 		this._minimumBufferLengthBucketDuration = windowDuration / this._minimumBufferLengthNumberOfBuckets;
-		this._minimums = [{ time:window.performance.now() / 1000.0, minimum:0 }];
+		this._minimums = [{ time:window.performance.now() / 1000.0, minimum:0, maximum:this.bufferLength }];
 		this._cachedMinimumBufferLength = 0;
+		this._cachedMaximumBufferLength = this.bufferLength;
 	}
 
 	get minimumBufferLength() { return this._cachedMinimumBufferLength; }
+	get maximumBufferLength() { return this._cachedMaximumBufferLength; }
 
 	isOverbuffered() {
 		const bufferLength = this.bufferLength;
@@ -108,7 +110,7 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		const historyThresh = this._minimumBufferLengthWindowDuration;
 		if(now - entry.time > this._minimumBufferLengthBucketDuration)
 		{
-			this._minimums.unshift({ time:now, minimum:value });
+			this._minimums.unshift({ time:now, minimum:value, maximum:value });
 
 			var lastEntry;
 			while( (lastEntry = this._minimums[this._minimums.length - 1])
@@ -117,11 +119,16 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 				this._minimums.pop();
 
 			this._cachedMinimumBufferLength = this._minimums.reduce(function(l, r) { return Math.min(l, r.minimum); }, Infinity);
+			this._cachedMaximumBufferLength = this._minimums.reduce(function(l, r) { return Math.max(l, r.maximum); }, 0);
 		}
 		else
+		{
 			entry.minimum = Math.min(entry.minimum, value);
+			entry.maximum = Math.max(entry.maximum, value);
+		}
 
 		this._cachedMinimumBufferLength = Math.min(this._cachedMinimumBufferLength, value);
+		this._cachedMaximumBufferLength = Math.max(this._cachedMaximumBufferLength, value);
 	}
 
 	_onFlush(info) {
