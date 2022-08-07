@@ -136,7 +136,7 @@ function onLoaded() {
 	populateOverrides();
 
 	// in case we're being relayed through rtmfp, try to hasten switch to new address
-	navigator.connection?.addEventListener("change", (_) => { try { connection?.command("ping"); } catch(_) {} });
+	navigator.connection?.addEventListener("change", () => { try { connection?.command("ping"); } catch(_) {} });
 
 	setInterval(displayStats, 125);
 }

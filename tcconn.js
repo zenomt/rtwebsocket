@@ -67,19 +67,22 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 }
 
 Connection.prototype.command = function(method, ...args) {
-	if(!this.isOpen)
-		throw new Error("not open");
+	this._validateCommandName(method);
+	return this._command(method, ...args);
+}
 
-	switch(method)
-	{
-	case "createStream":
-	case "deleteStream":
-	case "connect":
-		throw new RangeError("method " + method + " not allowed");
+Connection.prototype.transact = function(method, ...args) {
+	this._validateCommandName(method);
 
-	default:
-		return this._command(method, ...args);
-	}
+	const myself = this;
+	return new Promise(function(resolve, reject) {
+		myself._transact(function(success, rv) {
+			if(success)
+				resolve(rv);
+			else
+				reject(rv);
+		}, method, ...args);
+	});
 }
 
 Connection.prototype.createStream = function() {
@@ -134,6 +137,19 @@ Connection.prototype.close = function(isError) {
 }
 
 // ---
+
+Connection.prototype._validateCommandName = function(methodName) {
+	if(!this.isOpen)
+		throw new Error("not open");
+
+	switch(methodName)
+	{
+	case "createStream":
+	case "deleteStream":
+	case "connect":
+		throw new RangeError("method " + methodName + " not allowed");
+	}
+}
 
 Connection.prototype._command = function(method, ...args) {
 	if(this.isOpen)
