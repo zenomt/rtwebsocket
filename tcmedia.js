@@ -180,6 +180,9 @@ class com_zenomt_TCMediaDecoder {
 				break;
 		}
 
+		if((!frame) && (!this.audioController.clockRunning))
+			frame = this._videoFrames.shift();
+
 		if(frame)
 		{
 			if(this.ondrawframe)

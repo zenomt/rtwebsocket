@@ -13,6 +13,8 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		this._nextFlushID = 0;
 		this._sampleRate = context.sampleRate;
 		this._lastTimestamp = 0;
+		this._lastTimestampTime = 0;
+		this._clockRunning = false;
 		this._totalFramesProcessed = 0;
 		this._totalFramesAppended = 0;
 		this._bufferTime = 0;
@@ -26,8 +28,10 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		this.port.onmessage = (event) => { this._onMessage(event); };
 	}
 
+	static _audioProcessorUrl = (new URL("tcaudioprocessor.js", document.currentScript.src)).href;
+
 	static register(context) {
-		return context.audioWorklet.addModule("tcaudioprocessor.js");
+		return context.audioWorklet.addModule(this._audioProcessorUrl);
 	}
 
 	static convertAudioDataToPlanes(audioData) {
@@ -69,7 +73,13 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		return new Promise(function(resolve, reject) { myself._pendingFlushes[flushID] = { resolve, reject }; });
 	}
 
-	get currentTime() { return this._lastTimestamp; }
+	get currentTime() {
+		if(this.clockRunning)
+			return this._lastTimestamp + this.context.currentTime - this._lastTimestampTime;
+		return this._lastTimestamp;
+	}
+
+	get clockRunning() { return this._clockRunning; }
 
 	get bufferLength() { return (this._totalFramesAppended - this._totalFramesProcessed) / this._sampleRate; }
 
@@ -155,7 +165,10 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 			return;
 
 		if(undefined != data.timestamp)
+		{
 			this._lastTimestamp = data.timestamp;
+			this._lastTimestampTime = data.currentTime;
+		}
 		if(undefined != data.totalFramesProcessed)
 		{
 			this._totalFramesProcessed = data.totalFramesProcessed;
@@ -166,6 +179,10 @@ class com_zenomt_TCAudioSourceNode extends AudioWorkletNode {
 		{
 			if("NetStream.Buffer.Flush" == data.event)
 				this._onFlush(data.info);
+			if("NetStream.Buffer.Full" == data.event)
+				this._clockRunning = true;
+			if("NetStream.Buffer.Empty" == data.event)
+				this._clockRunning = false;
 
 			this._sendOnStatusMessage(data.event, "status");
 		}
@@ -196,6 +213,8 @@ class com_zenomt_SimpleAudioController {
 	}
 
 	get currentTime() { return this._tcSourceNode ? this._tcSourceNode.currentTime : 0; }
+
+	get clockRunning() { return this._tcSourceNode ? this._tcSourceNode.clockRunning : false }
 
 	get bufferTime() { return this._bufferTime; }
 	set bufferTime(value) {

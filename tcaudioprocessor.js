@@ -143,6 +143,7 @@ registerProcessor('com_zenomt_TCAudioSourceNodeProcessor', class extends AudioWo
 
 	postMessage(event, info) {
 		const message = {
+			currentTime,
 			totalFramesProcessed: this._totalFramesProcessed,
 			timestamp: this._lastTimestamp + (this._framesOutputSinceTimestamp / sampleRate)
 		};
