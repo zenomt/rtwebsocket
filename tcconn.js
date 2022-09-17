@@ -403,6 +403,8 @@ function Stream(owner, streamID) {
 	this._dataSend = null;
 	this._recvFlows = [];
 	this._statusListeners = new Set();
+	this._aacSampleRate = 0;
+	this._aacChannelCount = 0;
 
 	this.client = {};
 }
@@ -651,6 +653,19 @@ Stream.prototype._onAudioMessage = function(header, message) {
 			header.isAAC = true;
 			header.aacPacketType = message[cursor];
 			cursor++;
+
+			if((TC.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType) && (cursor + 1 < limit))
+			{
+				const sampleRates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0, 0, 0];
+				const sampleRateIndex = ((message[cursor] & 0x7) << 1) + ((message[cursor + 1] >> 7) & 0x1);
+				const channelConfig = (message[cursor + 1] & 0x78) >> 3;
+
+				this._aacChannelCount = (7 == channelConfig) ? 8 : channelConfig;
+				this._aacSampleRate = sampleRates[sampleRateIndex];
+			}
+
+			header.sampleRate = this._aacSampleRate;
+			header.numberOfChannels = this._aacChannelCount;
 		}
 		else
 			header.isAAC = false;

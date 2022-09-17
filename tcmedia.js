@@ -214,10 +214,7 @@ class com_zenomt_TCMediaDecoder {
 			{
 			case com_zenomt_TCMessage.TC_AUDIO_CODEC_AAC:
 				if((com_zenomt_TCMessage.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType) && payload.length)
-				{
 					config = { codec:"mp4a.40.2", description:payload };
-					header.numberOfChannels = (payload[1] & 0x78) >> 3; // shouldn't be needed for mp4a.40.2, but Chrome needs it to match.
-				}
 				else
 					return;
 				break;
