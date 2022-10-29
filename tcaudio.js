@@ -360,6 +360,15 @@ class com_zenomt_SimpleAudioController {
 			entry.resolve();
 	}
 
+	_addKeepaliveHum() {
+		// work around Chrome bug that slows down audio processing if playout if perfectly silent.
+		const oscillator = new OscillatorNode(this._context, { frequency:10 }); // subaudible
+		const oscillatorGain = new GainNode(this._context, { gain: 0.001 });
+		oscillator.connect(oscillatorGain);
+		oscillatorGain.connect(this._context.destination);
+		oscillator.start(0);
+	}
+
 	_buildPipeline(channels, sampleRate) {
 		this._doReset();
 		this._context = new AudioContext({ sampleRate });
@@ -378,6 +387,8 @@ class com_zenomt_SimpleAudioController {
 			this._currentChannelCount = channels;
 
 			this._pipelinePending = false;
+
+			this._addKeepaliveHum();
 
 			this._processBuffer();
 		});
