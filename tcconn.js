@@ -48,14 +48,26 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	if(this._rtws)
 		throw new Error("connect already called");
 
+	const parsedUri = Connection.URIParse(wsurl);
+
 	argObject = Object.create(argObject || {});
 	argObject.objectEncoding = argObject.objectEncoding || 0;
-	argObject.tcUrl = argObject.tcUrl || wsurl;
+	argObject.tcUrl = argObject.tcUrl || parsedUri.publicUri;
 	if((!argObject.app) && ("" != argObject.app))
 		argObject.app = Connection.appFromTcUrl(argObject.tcUrl);
 
+	const argsCopy = args.slice();
+	if(0 == argsCopy.length)
+	{
+		// if not set explicitly, set user and password from URI if present
+		if(parsedUri.userinfoPart)
+			argsCopy.push(parsedUri.user);
+		if(parsedUri.passwordPart)
+			argsCopy.push(parsedUri.password);
+	}
+
 	// deep copy, ensures AMF0 compatible early
-	const connectPayload = AMF0.decodeMany(AMF0.encodeMany(argObject, ...args));
+	const connectPayload = AMF0.decodeMany(AMF0.encodeMany(argObject, ...argsCopy));
 
 	this._rtws = new RTWebSocket(wsurl);
 	const myself = this;
@@ -353,24 +365,61 @@ Connection.appFromTcUrl = function(tcUrl) {
 Connection.URIParse = function(uri) {
 	const rv = {uri};
 	const parts = new RegExp("^(([^:/?#]+):)?([^?#]*)?(\\?([^#]*))?(#(.*))?").exec(uri || "");
-	rv.scheme = parts[2];
+	rv.schemePart = parts[1] || "";
+	rv.scheme = parts[2] || "";
+	rv.canonicalScheme = rv.scheme.toLowerCase();
 	rv.hierpart = parts[3] || "";
-	rv.query = parts[5];
-	rv.fragment = parts[7];
+	rv.queryPart = parts[4] || "";
+	rv.query = parts[5] || "";
+	rv.fragmentPart = parts[6] || "";
+	rv.fragment = parts[7] || "";
 
 	const hierparts = new RegExp("^(//([^/]*))?(.*)").exec(rv.hierpart || "");
-	rv.authority = hierparts[2];
-	rv.path = hierparts[3];
+	rv.authorityPart = hierparts[1] || "";
+	rv.authority = hierparts[2] || "";
+	rv.path = hierparts[3] || "";
 
-	const authparts = new RegExp("^(([^@]*)@)?(.*)").exec(rv.authority || "");
-	rv.userinfo = authparts[2];
-	rv.hostinfo = authparts[3];
+	const authparts = new RegExp("^((([^:@]*)(:([^@]*))?)@)?(.*)").exec(rv.authority || "");
+	rv.userinfoPart = authparts[1] || "";
+	rv.userinfo = authparts[2] || "";
+	rv.user = authparts[3] || "";
+	rv.passwordPart = authparts[4] || "";
+	rv.password = authparts[5] || "";
+	rv.hostinfo = authparts[6] || "";
 
-	const hostparts = new RegExp("^((\\[[0-9a-fA-Fv:]*\\]))?([^:]*)?(:([0-9]+))?").exec(rv.hostinfo || "");
-	rv.host = hostparts[2] || hostparts[3];
-	rv.port = hostparts[5];
+	const hostparts = new RegExp("^((\\[([0-9a-fA-Fv:.]*)?\\]))?([^:]*)?(:([0-9]+))?").exec(rv.hostinfo || "");
+	rv.host = hostparts[3] || hostparts[4] || "";
+	rv.port = hostparts[6] || "";
+	rv.effectivePort = rv.port;
 
 	rv.origin = (rv.scheme && rv.hostinfo) ? rv.scheme + "://" + rv.hostinfo : undefined;
+
+	if(rv.hostinfo && !rv.effectivePort)
+	{
+		switch(rv.canonicalScheme)
+		{
+		case "http":
+		case "ws":
+			rv.effectivePort = "80";
+			break;
+
+		case "https":
+		case "wss":
+		case "rtmps":
+			rv.effectivePort = 443;
+			break;
+
+		case "rtmfp":
+		case "rtmp":
+			rv.effectivePort = 1935;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	rv.publicUri = rv.schemePart + (rv.authorityPart ? ("//" + rv.hostinfo) : "") + rv.path + rv.queryPart;
 
 	return rv;
 }
