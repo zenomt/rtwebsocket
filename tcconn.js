@@ -623,11 +623,24 @@ Stream.prototype._onVideoMessage = function(header, message) {
 	let cursor = header.consumed;
 	const limit = message.length;
 
+	header.enhanced = (message[cursor] & TC.TC_VIDEO_ENHANCED_ISEXHEADER) != 0;
+	if(header.enhanced && (limit - cursor < 5))
+		return;
+
 	header.frametype = message[cursor] & TC.TC_VIDEO_FRAMETYPE_MASK;
-	header.codec = message[cursor] & TC.TC_VIDEO_CODEC_MASK;
 	header.presentationTime = header.timestamp;
 
-	cursor++;
+	if(header.enhanced)
+	{
+		header.codec = (message[cursor] * 16777216) + (message[cursor + 1] * 65536) + (message[cursor + 2] * 256) + message[cursor + 3];
+		header.enhancedPacketType = message[cursor] & TC.TC_VIDEO_ENH_PACKETTYPE_MASK;
+		cursor += 5;
+	}
+	else
+	{
+		header.codec = message[cursor] & TC.TC_VIDEO_CODEC_MASK;
+		cursor++;
+	}
 
 	if(TC.TC_VIDEO_CODEC_AVC == header.codec)
 	{
@@ -642,6 +655,21 @@ Stream.prototype._onVideoMessage = function(header, message) {
 		if(compositionTimeOffset & 0x00800000)
 			compositionTimeOffset |= 0xff000000; // sign extend, JS treats as signed int32
 		header.presentationTime = header.timestamp + compositionTimeOffset;
+	}
+	else if(TC.TC_VIDEO_ENH_CODEC_HEVC == header.codec)
+	{
+		if(TC.TC_VIDEO_ENH_PACKETTYPE_CODED_FRAMES == header.enhancedPacketType)
+		{
+			if(limit - cursor < 3)
+				return;
+
+			let compositionTimeOffset = message[cursor++]; compositionTimeOffset <<= 8;
+			compositionTimeOffset += message[cursor++]; compositionTimeOffset <<= 8;
+			compositionTimeOffset += message[cursor++];
+			if(compositionTimeOffset & 0x00800000)
+				compositionTimeOffset |= 0xff000000; // sign extend, JS treats as signed int32
+			header.presentationTime = header.timestamp + compositionTimeOffset;
+		}
 	}
 
 	if(TC.TC_VIDEO_FRAMETYPE_COMMAND == header.frametype)
