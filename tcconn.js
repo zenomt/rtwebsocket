@@ -623,7 +623,7 @@ Stream.prototype._onVideoMessage = function(header, message) {
 	let cursor = header.consumed;
 	const limit = message.length;
 
-	header.enhanced = (message[cursor] & TC.TC_VIDEO_ENHANCED_ISEXHEADER) != 0;
+	header.enhanced = ((message[cursor] & TC.TC_VIDEO_ENHANCED_FLAG_ISEXHEADER) != 0);
 	if(header.enhanced && (limit - cursor < 5))
 		return;
 
@@ -632,7 +632,7 @@ Stream.prototype._onVideoMessage = function(header, message) {
 
 	if(header.enhanced)
 	{
-		header.codec = (message[cursor] * 16777216) + (message[cursor + 1] * 65536) + (message[cursor + 2] * 256) + message[cursor + 3];
+		header.codec = (message[cursor + 1] * 16777216) + (message[cursor + 2] * 65536) + (message[cursor + 3] * 256) + message[cursor + 4];
 		header.enhancedPacketType = message[cursor] & TC.TC_VIDEO_ENH_PACKETTYPE_MASK;
 		cursor += 5;
 	}
