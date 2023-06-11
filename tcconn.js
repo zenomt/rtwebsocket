@@ -712,7 +712,7 @@ Stream.prototype._onVideoMessage = function(header, message) {
 	header.payloadOffset = cursor;
 
 	if(header.isConfiguration)
-		header.codecParameterString = this._makeCodecParameterString(header, message);
+		header.codecParameterString = this._makeVideoCodecParameterString(header, message);
 
 	try { this.onvideo(header, message); }
 	catch(e) { console.log("exception calling Stream.onvideo", e); }
@@ -806,7 +806,7 @@ Stream.prototype._onDataMessage = function(header, message) {
 	}
 }
 
-Stream.prototype._makeCodecParameterString = function(header, message) {
+Stream.prototype._makeVideoCodecParameterString = function(header, message) {
 	var payload = message.subarray(header.payloadOffset);
 
 	switch(header.codec)
@@ -822,6 +822,9 @@ Stream.prototype._makeCodecParameterString = function(header, message) {
 			return this._av1CodecStringFromConfigurationRecord(payload);
 		else
 			return; // TODO
+
+	case TC.TC_VIDEO_ENH_CODEC_VP9:
+		return this._vp9CodecStringFromConfigurationRecord(payload);
 	}
 }
 
@@ -871,6 +874,24 @@ Stream.prototype._hevcCodecStringFromConfigurationRecord = function(bytes) {
 	const constraints = `${hex_at(6)}.${hex_at(7)}.${hex_at(8)}.${hex_at(9)}.${hex_at(10)}.${hex_at(11)}`;
 
 	return `hvc1.${general_profile_space}${general_profile_idc}.${general_profile_compatibility_flags}.${general_tier_flag}${general_level_idc}.${constraints}`;
+}
+
+Stream.prototype._vp9CodecStringFromConfigurationRecord = function(bytes) {
+	if(bytes.length < 6)
+		return;
+
+	const doubleDigit = (x) => (x < 10) ? "0" + x : "" + x;
+
+	const profile = doubleDigit(bytes[0]);
+	const level = doubleDigit(bytes[1]);
+	const bitDepth = doubleDigit((bytes[2] >> 4) & 0x0f);
+	const chromaSubsampling = doubleDigit((bytes[2] >> 1) & 0x07);
+	const videoFullRangeFlag = doubleDigit(bytes[2] & 0x01);
+	const colourPrimaries = doubleDigit(bytes[3]); // spelling as per spec
+	const transferCharacteristics = doubleDigit(bytes[4]);
+	const matrixCoefficients = doubleDigit(bytes[5]);
+
+	return `vp09.${profile}.${level}.${bitDepth}.${chromaSubsampling}.${colourPrimaries}.${transferCharacteristics}.${matrixCoefficients}.${videoFullRangeFlag}`;
 }
 
 })();
