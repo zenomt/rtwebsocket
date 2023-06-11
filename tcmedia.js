@@ -11,6 +11,7 @@ class com_zenomt_TCMediaDecoder {
 		this._lastAudioTimestamp = -Infinity;
 		this._animationFrameRequested = false;
 		this._lastAudioType = -1;
+		this._configuredVideoType = -1;
 		this._audioIsResyncing = false;
 		this._audioNeedsResync = false;
 		this._seenAudio = false;
@@ -284,58 +285,62 @@ class com_zenomt_TCMediaDecoder {
 	}
 
 	_onVideoMessage(header, message) {
-		if(header.isAVC)
+		const payload = message.subarray(header.payloadOffset);
+
+		if(header.isConfiguration)
 		{
-			let payload = message.subarray(header.payloadOffset);
+			var config = { codec: header.codecParameterString };
 
-			if(com_zenomt_TCMessage.TC_VIDEO_AVCPACKET_AVCC == header.avcPacketType)
-			{
-				if(payload.length < 2)
-				{
-					this._videoDecoder.reset();
-					this._seenVideoKeyframe = false;
-					return;
-				}
+			this._seenVideoKeyframe = false;
 
-				let config = {
-					codec: "avc1.64081f",
-					description: payload
-				};
+			if( (com_zenomt_TCMessage.TC_VIDEO_ENH_CODEC_HEVC == header.codec)
+			 || (com_zenomt_TCMessage.TC_VIDEO_CODEC_AVC == header.codec)
+			)
+				config.description = payload;
 
-				try { this._videoDecoder.configure(config); }
-				catch(e) {
-					console.log("videoDecoder.configure()", e);
-					this._videoDecoder.reset();
-				}
-				this._seenVideoKeyframe = false;
+			if(!config.codec)
+				return;
+
+			try {
+				console.log("configure", config);
+				this._videoDecoder?.close();
+				this._makeVideoDecoder();
+				this._videoDecoder.configure(config);
+				this._configuredVideoType = header.codec;
 			}
-			else if(("configured" == this._videoDecoder.state) && (com_zenomt_TCMessage.TC_VIDEO_AVCPACKET_NALU == header.avcPacketType))
-			{
-				if(com_zenomt_TCMessage.TC_VIDEO_FRAMETYPE_COMMAND == header.frametype)
-					return;
-
-				const type = (com_zenomt_TCMessage.TC_VIDEO_FRAMETYPE_IDR == header.frametype) ? "key" : "delta";
-				if("key" == type)
-					this._seenVideoKeyframe = true;
-				if(!this._seenVideoKeyframe)
-					return;
-
-				if((!this._seenAudio) && (!this._sendingSilence) && (this._videoFrames.length > 2))
-				{
-					// get video moving. if audio frames come along, they'll override the silence.
-					this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0));
-					this._sendingSilence = true;
-				}
-
-				try {
-					this._videoDecoder.decode(new EncodedVideoChunk({
-						type,
-						timestamp: ((header.presentationTime < 0) ? 0 : header.presentationTime) * 1000, // ms -> µs
-						data: payload
-					}));
-				}
-				catch(e) { this._onVideoDecoderError(e); }
+			catch(e) {
+				console.log("videoDecoder.configure()", config, e);
+				this._configuredVideoType = -1;
+				this._videoDecoder.reset();
 			}
+		}
+
+		if(header.codec != this._configuredVideoType)
+			return;
+
+		if(("configured" == this._videoDecoder.state) && header.isCodedFrame)
+		{
+			const type = (com_zenomt_TCMessage.TC_VIDEO_FRAMETYPE_IDR == header.frametype) ? "key" : "delta";
+			if("key" == type)
+				this._seenVideoKeyframe = true;
+			if(!this._seenVideoKeyframe)
+				return;
+
+			if((!this._seenAudio) && (!this._sendingSilence) && (this._videoFrames.length > 2))
+			{
+				// get video moving. if audio frames come along, they'll override the silence.
+				this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0));
+				this._sendingSilence = true;
+			}
+
+			try {
+				this._videoDecoder.decode(new EncodedVideoChunk({
+					type,
+					timestamp: ((header.presentationTime < 0) ? 0 : header.presentationTime) * 1000, // ms -> µs
+					data: payload
+				}));
+			}
+			catch(e) { this._onVideoDecoderError(e); }
 		}
 	}
 

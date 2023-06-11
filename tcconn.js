@@ -629,12 +629,37 @@ Stream.prototype._onVideoMessage = function(header, message) {
 
 	header.frametype = message[cursor] & TC.TC_VIDEO_FRAMETYPE_MASK;
 	header.presentationTime = header.timestamp;
+	header.isConfiguration = false;
+
+	switch(header.frametype)
+	{
+	case TC.TC_VIDEO_FRAMETYPE_IDR:
+	case TC.TC_VIDEO_FRAMETYPE_INTER:
+	case TC.TC_VIDEO_FRAMETYPE_DISPOSABLE:
+	case TC.TC_VIDEO_FRAMETYPE_GENERATED_IDR:
+		header.isCodedFrame = true;
+		break;
+
+	default:
+		header.isCodedFrame = false;
+		break;
+	}
 
 	if(header.enhanced)
 	{
 		header.codec = (message[cursor + 1] * 16777216) + (message[cursor + 2] * 65536) + (message[cursor + 3] * 256) + message[cursor + 4];
 		header.enhancedPacketType = message[cursor] & TC.TC_VIDEO_ENH_PACKETTYPE_MASK;
 		cursor += 5;
+
+		if( (TC.TC_VIDEO_ENH_PACKETTYPE_CODED_FRAMES != header.enhancedPacketType)
+		 && (TC.TC_VIDEO_ENH_PACKETTYPE_CODED_FRAMES_X != header.enhancedPacketType)
+		)
+			header.isCodedFrame = false;
+
+		if( (TC.TC_VIDEO_ENH_PACKETTYPE_SEQUENCE_START == header.enhancedPacketType)
+		 || (TC.TC_VIDEO_ENH_PACKETTYPE_MPEG2TS_SEQUENCE_START == header.enhancedPacketType)
+		)
+			header.isConfiguration = true;
 	}
 	else
 	{
@@ -655,6 +680,11 @@ Stream.prototype._onVideoMessage = function(header, message) {
 		if(compositionTimeOffset & 0x00800000)
 			compositionTimeOffset |= 0xff000000; // sign extend, JS treats as signed int32
 		header.presentationTime = header.timestamp + compositionTimeOffset;
+
+		if(TC.TC_VIDEO_AVCPACKET_NALU != header.avcPacketType)
+			header.isCodedFrame = false;
+		if(TC.TC_VIDEO_AVCPACKET_AVCC == header.avcPacketType)
+			header.isConfiguration = true;
 	}
 	else if(TC.TC_VIDEO_ENH_CODEC_HEVC == header.codec)
 	{
@@ -680,6 +710,9 @@ Stream.prototype._onVideoMessage = function(header, message) {
 	}
 
 	header.payloadOffset = cursor;
+
+	if(header.isConfiguration)
+		header.codecParameterString = this._makeCodecParameterString(header, message);
 
 	try { this.onvideo(header, message); }
 	catch(e) { console.log("exception calling Stream.onvideo", e); }
@@ -771,6 +804,73 @@ Stream.prototype._onDataMessage = function(header, message) {
 		try { this.client[command](...args); }
 		catch(e) { console.log("exception calling Stream.client." + command, e); }
 	}
+}
+
+Stream.prototype._makeCodecParameterString = function(header, message) {
+	var payload = message.subarray(header.payloadOffset);
+
+	switch(header.codec)
+	{
+	case TC.TC_VIDEO_CODEC_AVC:
+		return "avc1.64081f";
+
+	case TC.TC_VIDEO_ENH_CODEC_HEVC:
+		return this._hevcCodecStringFromConfigurationRecord(payload);
+
+	case TC.TC_VIDEO_ENH_CODEC_AV1:
+		if(TC.TC_VIDEO_ENH_PACKETTYPE_SEQUENCE_START == header.enhancedPacketType)
+			return this._av1CodecStringFromConfigurationRecord(payload);
+		else
+			return; // TODO
+	}
+}
+
+Stream.prototype._av1CodecStringFromConfigurationRecord = function(bytes) {
+	if(bytes.length < 3)
+		return;
+
+	const doubleDigit = (x) => (x < 10) ? "0" + x : "" + x;
+
+	const profile = (bytes[1] >> 5) & 7;
+	const seq_level_idx = doubleDigit(bytes[1] & 0x1f);
+	const tier = (bytes[2] & 0x80) ? "H" : "M";
+	const high_bitdepth = bytes[2] & 0x40;
+	const twelve_bit = bytes[2] & 0x20;
+	const bitDepth = high_bitdepth ? (twelve_bit ? "12" : "10") : "08";
+	const monochrome = (bytes[2] & 0x10) ? "1" : "0";
+	const subsampling_x = (bytes[2] & 0x08) ? 1 : 0;
+	const subsampling_y = (bytes[2] & 0x04) ? 1 : 0;
+	const chroma_sample_position = (subsampling_x && subsampling_y) ? ((bytes[2] >> 2) & 0x03) : 0;
+	const chromaSubsampling = `${subsampling_x}${subsampling_y}${chroma_sample_position}`;
+
+	// TODO: parse into the Sequence Header OBU beyond the to get colorPrimaries, transferCharacteristics,
+	// matrixCoefficients, and videoFullRangeFlag, if color_description_present_flag is set.
+
+	return `av01.${profile}.${seq_level_idx}${tier}.${bitDepth}.${monochrome}.${chromaSubsampling}`;
+}
+
+Stream.prototype._hevcCodecStringFromConfigurationRecord = function(bytes) {
+	if(bytes.length < 13)
+		return;
+
+	const hex_at = (x) => bytes[x].toString(16);
+
+	var general_profile_space;;
+	switch((bytes[1] >> 6) & 0x3)
+	{
+	case 0: general_profile_space = ""; break;
+	case 1: general_profile_space = "A"; break;
+	case 2: general_profile_space = "B"; break;
+	case 3: general_profile_space = "C"; break;
+	}
+
+	const general_profile_idc = (bytes[1] & 0x1f).toString(16);
+	const general_profile_compatibility_flags = ((bytes[3] * 16777216) + (bytes[4] * 65536) + (bytes[5] * 256) + bytes[6]).toString(16);
+	const general_tier_flag = (bytes[1] & 0x20) ? "H" : "L";
+	const general_level_idc = bytes[12].toString(10); // base 10 for this
+	const constraints = `${hex_at(6)}.${hex_at(7)}.${hex_at(8)}.${hex_at(9)}.${hex_at(10)}.${hex_at(11)}`;
+
+	return `hvc1.${general_profile_space}${general_profile_idc}.${general_profile_compatibility_flags}.${general_tier_flag}${general_level_idc}.${constraints}`;
 }
 
 })();
