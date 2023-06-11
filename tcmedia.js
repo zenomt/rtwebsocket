@@ -118,6 +118,7 @@ class com_zenomt_TCMediaDecoder {
 	_onAudioDecoderOutput(output) {
 		this.audioController.appendAudioData(output);
 		output.close();
+		this._sendingSilence = false;
 	}
 
 	_onAudioDecoderError(e) {
@@ -198,11 +199,11 @@ class com_zenomt_TCMediaDecoder {
 	}
 
 	_onAudioMessage(header, message) {
-		this._seenAudio = true;
-
 		if(header.silence)
 		{
-			this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0));
+			this._seenAudio = false;
+			this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0 - this.audioController.bufferTime));
+			this._sendingSilence = true;
 			return;
 		}
 
@@ -282,6 +283,7 @@ class com_zenomt_TCMediaDecoder {
 		});
 		this._audioDecoder.decode(encodedChunk);
 		this._audioFrameCount++;
+		this._seenAudio = true;
 	}
 
 	_onVideoMessage(header, message) {
@@ -326,11 +328,27 @@ class com_zenomt_TCMediaDecoder {
 			if(!this._seenVideoKeyframe)
 				return;
 
-			if((!this._seenAudio) && (!this._sendingSilence) && (this._videoFrames.length > 2))
+			if(!this._seenAudio)
 			{
 				// get video moving. if audio frames come along, they'll override the silence.
-				this._resyncAudio().then(() => this.audioController.silence(header.timestamp / 1000.0));
-				this._sendingSilence = true;
+				const thisFrameTime = header.timestamp / 1000.0;
+
+				if(!this._sendingSilence)
+				{
+					this._resyncAudio().then(() => this.audioController.silence(thisFrameTime - this.audioController.bufferTime));
+					this._sendingSilence = true;
+				}
+				else
+				{
+					// TODO real video-only jitter buffering
+
+					const now = this.audioController.currentTime;
+
+					if( (thisFrameTime - now > this.audioController.bufferTime + 0.050)
+					 || (thisFrameTime < now)
+					)
+						this.audioController.silence(thisFrameTime - this.audioController.bufferTime);
+				}
 			}
 
 			try {
