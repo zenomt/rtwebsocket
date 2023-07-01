@@ -360,6 +360,11 @@ class com_zenomt_TCMediaDecoder {
 			}
 			catch(e) { this._onVideoDecoderError(e); }
 		}
+		else if(("configured" == this._videoDecoder.state) && header.isSequenceEnd)
+		{
+			try { this._videoDecoder.flush(); }
+			catch(e) { this._onVideoDecoderError(e); }
+		}
 	}
 
 	async _resyncAudio() {

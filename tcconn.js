@@ -630,6 +630,7 @@ Stream.prototype._onVideoMessage = function(header, message) {
 	header.frametype = message[cursor] & TC.TC_VIDEO_FRAMETYPE_MASK;
 	header.presentationTime = header.timestamp;
 	header.isConfiguration = false;
+	header.isSequenceEnd = false;
 
 	switch(header.frametype)
 	{
@@ -660,6 +661,8 @@ Stream.prototype._onVideoMessage = function(header, message) {
 		 || (TC.TC_VIDEO_ENH_PACKETTYPE_MPEG2TS_SEQUENCE_START == header.enhancedPacketType)
 		)
 			header.isConfiguration = true;
+		else if(TC.TC_VIDEO_ENH_PACKETTYPE_SEQUENCE_END == header.enhancedPacketType)
+			header.isSequenceEnd = true;
 	}
 	else
 	{
@@ -685,6 +688,8 @@ Stream.prototype._onVideoMessage = function(header, message) {
 			header.isCodedFrame = false;
 		if(TC.TC_VIDEO_AVCPACKET_AVCC == header.avcPacketType)
 			header.isConfiguration = true;
+		if(TC.TC_VIDEO_AVCPACKET_EOS == header.avcPacketType)
+			header.isSequenceEnd = true;
 	}
 	else if(TC.TC_VIDEO_ENH_CODEC_HEVC == header.codec)
 	{
