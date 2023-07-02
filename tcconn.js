@@ -69,7 +69,7 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	// deep copy, ensures AMF0 compatible early
 	const connectPayload = AMF0.decodeMany(AMF0.encodeMany(argObject, ...argsCopy));
 
-	this._rtws = new RTWebSocket(wsurl);
+	this._rtws = new RTWebSocket(parsedUri.publicUri);
 	const myself = this;
 	return new Promise(function(resolve, reject) {
 		myself._openPromiseControl = { resolve, reject };
@@ -391,6 +391,11 @@ Connection.URIParse = function(uri) {
 	rv.host = hostparts[3] || hostparts[4] || "";
 	rv.port = hostparts[6] || "";
 	rv.effectivePort = rv.port;
+
+	const secondaryparts = new RegExp("([^?]*)(\\?(.*))?").exec(rv.fragment || "");
+	rv.secondaryPath = secondaryparts[1];
+	rv.secondaryParamsPart = secondaryparts[2];
+	rv.secondaryParams = secondaryparts[3];
 
 	rv.origin = (rv.scheme && rv.hostinfo) ? rv.scheme + "://" + rv.hostinfo : undefined;
 

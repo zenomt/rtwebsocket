@@ -20,21 +20,23 @@ function onResize() {
 }
 
 function doPlay(mode) {
-	if(channelStream && stream_name.value)
+	const streamName = stream_name_override.value || stream_name_override.placeholder;
+
+	if(channelStream && streamName)
 	{
 		if("vod" == mode)
 		{
 			mediaDecoder.audioFrameSkipThresh = 100;
 			mediaDecoder.audioController.bufferTime = 0.50;
 			mediaDecoder.audioController.resetMinimumBufferLength(120);
-			channelStream.play(stream_name.value, { audioLifetime:3, finishByMargin:0.5 });
+			channelStream.play(streamName, { audioLifetime:3, finishByMargin:0.5 });
 		}
 		else
 		{
 			mediaDecoder.audioFrameSkipThresh = 20;
 			mediaDecoder.audioController.bufferTime = 0.0;
 			mediaDecoder.audioController.resetMinimumBufferLength(16);
-			channelStream.play(stream_name.value, { audioLifetime:0.25 });
+			channelStream.play(streamName, { audioLifetime:0.25 });
 		}
 	}
 }
@@ -106,8 +108,10 @@ function doDisconnect() {
 }
 
 function populateOverrides() {
-	tcurl_override.placeholder = com_zenomt_TCConnection.URIParse(server_uri.value).publicUri;
+	const uri = com_zenomt_TCConnection.URIParse(server_uri.value);
+	tcurl_override.placeholder = uri.publicUri;
 	app_override.placeholder = com_zenomt_TCConnection.appFromTcUrl(tcurl_override.value || server_uri.value);
+	stream_name_override.placeholder = uri.secondaryPath || "live";
 }
 
 function displayStats() {
@@ -150,7 +154,7 @@ function onLoaded() {
 <div>
 	<h1>Play Stream Demo</h1>
 	<table cellpadding="3">
-	<tr> <td>Server</td><td><input type="text" size="100" id="server_uri" placeholder="websocket url" value="ws://localhost:8080/live" /> </td> </tr>
+	<tr> <td>Server</td><td><input type="text" size="100" id="server_uri" placeholder="websocket url" value="ws://localhost:8080/live#live" /> </td> </tr>
 	<tr> <td>Overrides</td> <td><input type="text" size="48" id="tcurl_override" title="tcUrl override" /> <input type="text" size="64" id="app_override" title="app override" /> </td> </tr>
 	<tr>
 		<td></td>
@@ -162,7 +166,7 @@ function onLoaded() {
 	<tr>
 		<td>Stream</td>
 		<td>
-			<input type="text" size="40" id="stream_name" placeholder="stream name" value="live"/>
+			<input type="text" size="40" id="stream_name_override" title="stream name override" value=""/>
 			<button type="button" id="button_play" onclick="doPlay('live')">Play Live</button>
 			<button type="button" id="button_play_vod" onclick="doPlay('vod')">Play Buffered</button>
 			<button type="button" id="button_closestream" onclick="doCloseStream()">Close Stream</button>
