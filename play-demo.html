@@ -97,6 +97,7 @@ function doConnect() {
 			app:app_override.value || undefined,
 			videoCodecs:(1 << com_zenomt_TCMessage.TC_VIDEO_CODEC_AVC),
 			audioCodecs:0xffff, // cheat and say all of them
+			fourCcList:["av01", "vp09", "hvc1"], // Enhanced RTMP
 		}).then(onConnected).catch(onDisconnected);
 }
 
