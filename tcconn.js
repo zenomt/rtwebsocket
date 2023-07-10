@@ -59,11 +59,9 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	const argsCopy = args.slice();
 	if(0 == argsCopy.length)
 	{
-		// if not set explicitly, set user and password from URI if present
+		// if not set explicitly, set connect arguments from URI if present
 		if(parsedUri.userinfoPart)
-			argsCopy.push(parsedUri.user);
-		if(parsedUri.passwordPart)
-			argsCopy.push(parsedUri.password);
+			argsCopy.push(...parsedUri.userinfo.split(":"));
 	}
 
 	// deep copy, ensures AMF0 compatible early
@@ -391,11 +389,6 @@ Connection.URIParse = function(uri) {
 	rv.host = hostparts[3] || hostparts[4] || "";
 	rv.port = hostparts[6] || "";
 	rv.effectivePort = rv.port;
-
-	const secondaryparts = new RegExp("([^?]*)(\\?(.*))?").exec(rv.fragment || "");
-	rv.secondaryPath = secondaryparts[1];
-	rv.secondaryParamsPart = secondaryparts[2];
-	rv.secondaryParams = secondaryparts[3];
 
 	rv.origin = (rv.scheme && rv.hostinfo) ? rv.scheme + "://" + rv.hostinfo : undefined;
 
