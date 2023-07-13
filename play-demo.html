@@ -112,7 +112,7 @@ function populateOverrides() {
 	const uri = com_zenomt_TCConnection.URIParse(server_uri.value);
 	tcurl_override.placeholder = uri.publicUri;
 	app_override.placeholder = com_zenomt_TCConnection.appFromTcUrl(tcurl_override.value || server_uri.value);
-	stream_name_override.placeholder = uri.fragment || "live";
+	stream_name_override.placeholder = com_zenomt_TCConnection.safeDecodeURIComponent(uri.fragment) || "live";
 }
 
 function displayStats() {

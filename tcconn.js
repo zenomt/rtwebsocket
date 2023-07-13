@@ -61,7 +61,7 @@ Connection.prototype.connect = function(wsurl, argObject, ...args) {
 	{
 		// if not set explicitly, set connect arguments from URI if present
 		if(parsedUri.userinfoPart)
-			argsCopy.push(...parsedUri.userinfo.split(":"));
+			argsCopy.push(...parsedUri.userinfo.split(":").map(Connection.safeDecodeURIComponent));
 	}
 
 	// deep copy, ensures AMF0 compatible early
@@ -420,6 +420,11 @@ Connection.URIParse = function(uri) {
 	rv.publicUri = rv.schemePart + (rv.authorityPart ? ("//" + rv.hostinfo) : "") + rv.path + rv.queryPart;
 
 	return rv;
+}
+
+Connection.safeDecodeURIComponent = function(s) {
+	try { return decodeURIComponent(s); }
+	catch(e) { return s; }
 }
 
 function _onStatusMessage(target, info) {
