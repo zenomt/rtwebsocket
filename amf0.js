@@ -315,8 +315,11 @@ function decodeArray(bytes, cursor, limit, dst, maxDepth)
 function decodeObject(bytes, cursor, limit, dst, maxDepth)
 {
 	const anchor = cursor;
+	const typeMarker = bytes[cursor++];
 
-	if(AMF0.AMF0_TYPED_OBJECT_MARKER == bytes[cursor++])
+	if(AMF0.AMF0_ECMAARRAY_MARKER == typeMarker)
+		cursor += 4; // skip size since it's irrelevant
+	else if(AMF0.AMF0_TYPED_OBJECT_MARKER == typeMarker)
 	{
 		if(limit - cursor < 2)
 			return 0;
@@ -357,56 +360,6 @@ function decodeObject(bytes, cursor, limit, dst, maxDepth)
 	}
 
 	return 0;
-}
-
-function decodeECMAArray(bytes, cursor, limit, dst, maxDepth)
-{
-	const anchor = cursor;
-
-	cursor++;
-	if(limit - cursor < 4)
-		return 0;
-
-	var size = bytes[cursor++]; size *= 256;
-	size += bytes[cursor++]; size *= 256;
-	size += bytes[cursor++]; size *= 256;
-	size += bytes[cursor++];
-
-	var rv = {};
-
-	while(size--)
-	{
-		if(limit - cursor < 3)
-			return 0;
-
-		var keyLength = bytes[cursor++]; keyLength <<= 8;
-		keyLength += bytes[cursor++];
-
-		if(limit - cursor < keyLength)
-			return 0;
-
-		var key = AMF0.UTF8.decode(bytes, cursor, cursor + keyLength);
-		cursor += keyLength;
-
-		if((cursor < limit) && (AMF0.AMF0_OBJECT_END_MARKER == bytes[cursor]) && (0 == keyLength))
-		{
-			cursor++;
-			continue;
-		}
-
-		var tmp = [];
-		var consumed = AMF0.decode(bytes, cursor, limit, tmp, maxDepth);
-		if(0 == consumed)
-			return 0;
-
-		rv[key] = tmp.shift();
-
-		cursor += consumed;
-	}
-
-	dst.push(rv);
-
-	return cursor - anchor;
 }
 
 /**
@@ -459,10 +412,8 @@ AMF0.decode = function(bytes, cursor, limit, dst, maxDepth) {
 
 	case AMF0.AMF0_OBJECT_MARKER:
 	case AMF0.AMF0_TYPED_OBJECT_MARKER:
-		return decodeObject(bytes, cursor, limit, dst, maxDepth);
-
 	case AMF0.AMF0_ECMAARRAY_MARKER:
-		return decodeECMAArray(bytes, cursor, limit, dst, maxDepth);
+		return decodeObject(bytes, cursor, limit, dst, maxDepth);
 
 	// case AMF0.AMF0_OBJECT_END_MARKER: 
 	// case AMF0.AMF0_DATE_MARKER:
