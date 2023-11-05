@@ -33,7 +33,7 @@ function doPlay(mode) {
 			mediaDecoder.audioController.resetMinimumBufferLength(120);
 
 			if(checkbox_tcserver.checked)
-				tcserverExtras = "?audioLifetime=3&finishByMargin=0.5";
+				tcserverExtras = "?audioLifetime=3&previousGopStartByMargin=0.1&finishByMargin=3";
 		}
 		else
 		{
@@ -42,7 +42,7 @@ function doPlay(mode) {
 			mediaDecoder.audioController.resetMinimumBufferLength(16);
 
 			if(checkbox_tcserver.checked)
-				tcserverExtras = "?audioLifetime=0.25";
+				tcserverExtras = "?audioLifetime=0.25&previousGopStartBy=0.1&finishByMargin=0.5";
 		}
 
 		console.log('NetStream.play("' + streamName + tcserverExtras + '")');
