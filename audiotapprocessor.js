@@ -19,7 +19,7 @@ registerProcessor('com_zenomt_AudioTapNodeProcessor', class extends AudioWorklet
 		if(0 == this._offset)
 			this._bufferTimestamp = currentTime;
 
-		for(var ch = 0; ch < inputs.length; ch++)
+		for(var ch = 0; (ch < input.length) && (ch < output.length); ch++)
 		{
 			if(0 == this._offset)
 				this._planes.push(new Float32Array(this._samplesPerPost));
