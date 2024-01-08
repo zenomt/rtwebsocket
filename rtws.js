@@ -991,6 +991,14 @@ Object.defineProperties(WriteReceipt.prototype, {
 	messageNumber: {
 		get: function() { return this._messageNumber; },
 		enumerable: true
+	},
+	createdAt: {
+		get: function() { return this._origin; },
+		enumerable: true
+	},
+	finished: {
+		get: function() { return this._sent || this._abandoned },
+		enumerable: true
 	}
 });
 
@@ -1003,6 +1011,14 @@ WriteReceipt.prototype.abandon = function() {
 		if(this.onabandoned && !this._sent)
 			Promise.resolve().then(function() { self.onabandoned(self); } );
 	}
+}
+
+WriteReceipt.prototype.setStartWithin = function(val) {
+	this._startBy = this._origin + val;
+}
+
+WriteReceipt.prototype.setFinishWithin = function(val) {
+	this._endBy = this._origin + val;
 }
 
 WriteReceipt.prototype._isAbandoned = function() {
@@ -1025,6 +1041,28 @@ WriteReceipt.prototype._onSent = function() {
 	var self = this;
 	this._sent = true;
 	if(this.onsent) Promise.resolve().then(function() { self.onsent(self); } );
+}
+
+function WriteReceiptChain() {
+	this._receipts = [];
+}
+
+WriteReceiptChain.prototype.append = function(receipt) {
+	receipt.parent = this._receipts[this._receipts.length - 1] || null;
+	this._receipts.push(receipt);
+
+	while(this._receipts[0]?.finished)
+		this._receipts.shift();
+}
+
+WriteReceiptChain.prototype.expire = function(startDeadline, finishDeadline) {
+	finishDeadline = finishDeadline ?? startDeadline;
+	for(let each of this._receipts)
+	{
+		each.startBy = startDeadline;
+		each.finishBy = finishDeadline;
+	}
+	this._receipts = [];
 }
 
 function WriteMessage(bytes, capture, receipt) {
@@ -1331,5 +1369,6 @@ class FlowSyncManager {
 RTWebSocket.prototype._SendFlow = SendFlow;
 RTWebSocket.prototype._RecvFlow = RecvFlow;
 RTWebSocket.FlowSyncManager = FlowSyncManager;
+RTWebSocket.WriteReceiptChain = WriteReceiptChain;
 
 })();

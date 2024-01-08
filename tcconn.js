@@ -457,6 +457,7 @@ function Stream(owner, streamID) {
 	this._statusListeners = new Set();
 	this._aacSampleRate = 0;
 	this._aacChannelCount = 0;
+	this._chain = new RTWebSocket.WriteReceiptChain();
 
 	this.client = {};
 }
@@ -546,6 +547,14 @@ Stream.prototype.receiveAudio = function(flag, ...args) {
 
 Stream.prototype.receiveVideo = function(flag, ...args) {
 	this._command("receiveVideo", null, flag, ...args);
+}
+
+Stream.prototype.chain = function(receipt) {
+	this._chain.append(receipt);
+}
+
+Stream.prototype.expireChain = function(startDeadline, finishDeadline) {
+	this._chain.expire(startDeadline, finishDeadline);
 }
 
 Stream.prototype._openFlowForType = function(messageType) {
