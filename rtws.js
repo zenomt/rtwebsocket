@@ -38,7 +38,7 @@ function RTWebSocket(url) {
 
 RTWebSocket.prototype.chunkSize  = 1400;
 RTWebSocket.prototype.minAckWindow  = 1400*2;
-RTWebSocket.prototype.sendThresh = 1400*16;
+RTWebSocket.prototype.maxAckWindow = 1400*8;
 RTWebSocket.prototype.rttHistoryThresh = 60;
 RTWebSocket.prototype.rttHistoryCapacity = 5;
 RTWebSocket.prototype.minOutstandingThresh = 1024*64;
@@ -450,10 +450,7 @@ RTWebSocket.prototype._transmit = function() {
 		var workQueue = this._transmissionWork[pri];
 		while(workQueue.length > 0)
 		{
-			if( (this._ws.bufferedAmount >= this.sendThresh)
-			 || (this._sentBytesAccumulator >= this.sendThresh) // Safari bufferedAmount is always 0
-			 || (this.bytesInflight >= this.outstandingThresh)
-			)
+			if(this.bytesInflight >= this.outstandingThresh)
 			{
 				pri = -Infinity;
 				break;
@@ -469,20 +466,20 @@ RTWebSocket.prototype._transmit = function() {
 }
 
 RTWebSocket.prototype._startRTT = function() {
-	if((!this._rttAnchor) && (this._flowBytesSent > this._rttPreviousPosition))
+	if((!this._rttAnchor) && (this._flowBytesSent >= this._rttPreviousPosition))
 	{
 		this._rttAnchor = RTWebSocket._now();
 		this._rttPosition = this._flowBytesSent;
 
 		var ackWin = Math.max(this.minAckWindow, (this._flowBytesSent - this._flowBytesAcked) / 4);
-		ackWin = Math.min(ackWin, this.sendThresh / 2);
+		ackWin = Math.min(ackWin, this.maxAckWindow);
 
 		this._sendBytes([RTWebSocket.MSG_ACK_WINDOW].concat(this.makeVLU(ackWin)));
 	}
 }
 
 RTWebSocket.prototype._measureRTT = function() {
-	if(this._rttAnchor && (this._flowBytesAcked >= this._rttPosition))
+	if(this._rttAnchor && (this._flowBytesAcked > this._rttPosition))
 	{
 		var rtt = Math.max(RTWebSocket._now() - this._rttAnchor, 0.0001);
 		var numBytes = this._flowBytesSent - this._rttPreviousPosition;
@@ -492,14 +489,21 @@ RTWebSocket.prototype._measureRTT = function() {
 		this._rttPreviousPosition = this._flowBytesSent;
 
 		this._smoothedRTT = ((this._smoothedRTT * 7) + rtt) / 8;
-
 		this._addRTT(rtt);
 
-		if(numBytes >= this.outstandingThresh - this.minAckWindow)
+		const adjustThresh = Math.max(this.minAckWindow * 2, this.minOutstandingThresh);
+		if(numBytes >= adjustThresh - this.minAckWindow)
 		{
 			this.outstandingThresh = Math.max(
 				this.minOutstandingThresh,
 				bandwidth * (this.baseRTT + this.maxAdditionalDelay));
+
+			if(this.outstandingThresh == this.minOutstandingThresh)
+			{
+				// reset measurements
+				this._rttMeasurements = [{time:-Infinity, rtt: Infinity}];
+				this._addRTT(rtt);
+			}
 		}
 	}
 }
