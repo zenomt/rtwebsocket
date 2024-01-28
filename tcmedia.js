@@ -12,6 +12,7 @@ class com_zenomt_TCMediaDecoder {
 		this._animationFrameRequested = false;
 		this._lastAudioType = -1;
 		this._configuredVideoType = -1;
+		this._configuredVideoDescription = undefined;
 		this._audioIsResyncing = false;
 		this._audioNeedsResync = false;
 		this._seenAudio = false;
@@ -303,12 +304,19 @@ class com_zenomt_TCMediaDecoder {
 			if(!config.codec)
 				return;
 
+			if( ("configured" == this._videoDecoder?.state)
+			 && (this._configuredVideoType == header.codec)
+			 && (this._compareBytes(this._configuredVideoDescription, config.description))
+			)
+				return; // duplicate config, skip
+
 			try {
 				console.log("configure", config);
 				this._videoDecoder?.close();
 				this._makeVideoDecoder();
 				this._videoDecoder.configure(config);
 				this._configuredVideoType = header.codec;
+				this._configuredVideoDescription = config.description;
 			}
 			catch(e) {
 				console.log("videoDecoder.configure()", config, e);
@@ -380,5 +388,15 @@ class com_zenomt_TCMediaDecoder {
 			if(this._audioNeedsResync)
 				this._resyncAudio();
 		}
+	}
+
+	_compareBytes(l, r) {
+		if(l == r)
+			return true;
+		if((!l) || (!r))
+			return false;
+		if(l.length != r.length)
+			return false;
+		return l.every((val, i) => val == r[i]);
 	}
 }
