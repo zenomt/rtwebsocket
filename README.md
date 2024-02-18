@@ -3,7 +3,7 @@ RTWebSocket
 
 RTWebSocket is a simple protocol, inspired by [RTMFP (RFC 7016)][rfc7016],
 that multiplexes prioritized message flows over a [WebSocket][rfc6455]
-connection. Reference implementations are provided in JavaScript and Python (so far).
+connection. A reference implementation is provided here in JavaScript.
 A C++ implementation is available in
 [the RTMFP Library project test directory][rtmfp-cpp].
 
@@ -15,7 +15,7 @@ Protocol features include:
   - The sender can abandon a message after queuing, even if transmission of the message has started
   - Independent per-flow flow control
 
-Features of the reference implementations:
+Features of the reference implementation:
 
   - A message can be given an expiration time when queued, after which it is automatically abandoned
   - Queuing a message returns a `WriteReceipt` that can be used to track delivery and manually abandon the message

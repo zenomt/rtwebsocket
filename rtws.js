@@ -129,6 +129,7 @@ if(window.performance)
 	RTWebSocket._now = function() { return window.performance.now() / 1000.0; }
 else
 	RTWebSocket._now = function() { return (new Date()).getTime() / 1000.0; }
+RTWebSocket.getCurrentTime = RTWebSocket._now;
 
 RTWebSocket.prototype._basicOpenFlow = function(metadata, pri, returnFlowID) {
 	if(!this.isOpen)
@@ -741,7 +742,7 @@ Object.defineProperties(SendFlow.prototype, {
 	},
 });
 
-SendFlow.prototype.write = function(bytes, startBy, endBy, capture) {
+SendFlow.prototype.write = function(bytes, startWithin, endWithin, capture) {
 	if(!this._open)
 		throw new Error("write: flow is closed");
 
@@ -760,9 +761,7 @@ SendFlow.prototype.write = function(bytes, startBy, endBy, capture) {
 		capture = true;
 	}
 
-	var receipt = new WriteReceipt(this._nextMessageNumber);
-	receipt.startBy = startBy;
-	receipt.endBy = endBy;
+	var receipt = new WriteReceipt(this._nextMessageNumber, startWithin, endWithin);
 
 	var message = new WriteMessage(bytes, capture, receipt);
 	this._sendBuffer.push(message);
@@ -951,13 +950,13 @@ SendFlow.prototype._onExceptionMessage = function(code, description) {
 
 SendFlow.prototype._queueTransmission = function() { this._owner._queueTransmission(this); }
 
-function WriteReceipt(messageNumber) {
+function WriteReceipt(messageNumber, startWithin, endWithin) {
 	this._origin = RTWebSocket._now();
 	this._abandoned = false;
 	this._sent = false;
 	this._started = false;
-	this._startBy = Infinity;
-	this._endBy = Infinity;
+	this._startBy = (startWithin ?? Infinity) + this._origin;
+	this._endBy = (endWithin ?? Infinity) + this._origin;
 	this._messageNumber = messageNumber;
 }
 
@@ -1007,12 +1006,12 @@ Object.defineProperties(WriteReceipt.prototype, {
 });
 
 WriteReceipt.prototype.abandon = function() {
-	if(!this._abandoned)
+	if((!this._abandoned) && !this._sent)
 	{
 		this._abandoned = true;
 		this.parent = null;
 		var self = this;
-		if(this.onabandoned && !this._sent)
+		if(this.onabandoned)
 			Promise.resolve().then(function() { self.onabandoned(self); } );
 	}
 }
@@ -1030,10 +1029,10 @@ WriteReceipt.prototype._isAbandoned = function() {
 		return true;
 	if(this._sent)
 		return false;
-	var age = this.age;
-	if( ((this._started) && (age > this.endBy))
-	 || ((!this._started) && (age > this.startBy))
-	 || (this.parent && this.parent._abandoned)
+	var now = RTWebSocket.getCurrentTime();
+	if( (now > this._endBy)
+	 || ((!this._started) && (now > this._startBy))
+	 || (this.parent?.abandoned)
 	)
 		this.abandon();
 	return this._abandoned;
@@ -1060,11 +1059,10 @@ WriteReceiptChain.prototype.append = function(receipt) {
 }
 
 WriteReceiptChain.prototype.expire = function(startDeadline, finishDeadline) {
-	finishDeadline = finishDeadline ?? startDeadline;
 	for(let each of this._receipts)
 	{
-		each.startBy = startDeadline;
-		each.finishBy = finishDeadline;
+		each.startBy = Math.min(each.startBy, startDeadline);
+		each.endBy = Math.min(each.endBy, finishDeadline ?? startDeadline);
 	}
 	this._receipts = [];
 }

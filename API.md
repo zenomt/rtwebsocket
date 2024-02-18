@@ -66,6 +66,10 @@ interface RTWebSocket {
     attribute OnRTWSNotificationCallback? onclose;
     // if set, called when this RTWebSocket is closed, either as a result of calling
     // the close() method, a protocol error, or the underlying WebSocket closing.
+
+    static double getCurrentTime();
+    // answer the current time used by all RTWebSockets, measured in seconds since
+    // an arbitrary epoch. WriteReceipt deadlines are in this timescale.
 };
 </pre>
 
@@ -73,14 +77,14 @@ interface RTWebSocket {
 
 <pre>
 <a name="SendFlow"></a>interface SendFlow {
-    <a name="Sendflow-write"></a><a href="#WriteReceipt">WriteReceipt</a> write (RTWebSocket.Data_t data, optional double startBy, optional double endBy, optional boolean capture);
+    <a name="Sendflow-write"></a><a href="#WriteReceipt">WriteReceipt</a> write (RTWebSocket.Data_t data, optional double startWithin, optional double endWithin, optional boolean capture);
     // queue data to send to the receiver. if data is a DOMString, it is encoded
     // to UTF-8, otherwise data is converted to a Uint8Array. if capture is true,
     // data is allowed to be captured to avoid a copy; otherwise a copy will be made.
     // in practice data will only be captured if it is a Uint8Array.
-    // startBy is the time in seconds after queuing by which transmission of this message
+    // startWithin is the time in seconds after queuing by which transmission of this message
     // should start before the message is abandoned. default Infinity.
-    // endBy is the time in seconds after queuing by which transmission of this message,
+    // endWithin is the time in seconds after queuing by which transmission of this message,
     // if started, should complete before the message is abandoned. default Infinity.
     // answer a new <a href="#WriteReceipt">WriteReceipt</a> with which to track and control
     // delivery of this message.
@@ -217,10 +221,9 @@ interface RTWebSocket {
 
     attribute double startBy;
     attribute double endBy;
-    // change the startBy and endBy times for this message.
-    // see <a href="#Sendflow-write">SendFlow.write()</a> for a description of these
-    // attributes. changing startBy has no effect if transmission of this message
-    // has already started.
+    // the deadlines for this message by which transmission must start or must
+    // complete, respectively, in the timescale of RTWebSocket.getCurrentTime().
+    // changing startBy has no effect if transmission has already started.
 
     attribute WriteReceipt? parent;
     // If set, this message will be abandoned if the parent is abandoned. Useful for
