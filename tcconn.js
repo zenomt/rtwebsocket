@@ -664,6 +664,10 @@ Stream.prototype._onVideoMessage = function(header, message) {
 		header.enhancedPacketType = message[cursor] & TC.TC_VIDEO_ENH_PACKETTYPE_MASK;
 		cursor += 5;
 
+		// multitrack not supported
+		if(TC.TC_VIDEO_ENH_PACKETTYPE_MULTITRACK == header.enhancedPacketType)
+			return;
+
 		if( (TC.TC_VIDEO_ENH_PACKETTYPE_CODED_FRAMES != header.enhancedPacketType)
 		 && (TC.TC_VIDEO_ENH_PACKETTYPE_CODED_FRAMES_X != header.enhancedPacketType)
 		)
@@ -703,7 +707,7 @@ Stream.prototype._onVideoMessage = function(header, message) {
 		if(TC.TC_VIDEO_AVCPACKET_EOS == header.avcPacketType)
 			header.isSequenceEnd = true;
 	}
-	else if(TC.TC_VIDEO_ENH_CODEC_HEVC == header.codec)
+	else if((TC.TC_VIDEO_ENH_CODEC_HEVC == header.codec) || (TC.TC_VIDEO_ENH_CODEC_AVC == header.codec))
 	{
 		if(TC.TC_VIDEO_ENH_PACKETTYPE_CODED_FRAMES == header.enhancedPacketType)
 		{
@@ -750,38 +754,70 @@ Stream.prototype._onAudioMessage = function(header, message) {
 		const limit = message.length;
 
 		header.codec = message[cursor] & TC.TC_AUDIO_CODEC_MASK;
-		header.rate = message[cursor] & TC.TC_AUDIO_RATE_MASK;
-		header.soundSize = message[cursor] & TC.TC_AUDIO_SOUNDSIZE_MASK;
-		header.sound = message[cursor] & TC.TC_SOUND_MASK;
+		header.enhanced = header.codec == TC.TC_AUDIO_CODEC_EXHEADER;
 
-		header.numberOfChannels = (TC.TC_AUDIO_SOUND_STEREO == header.sound) ? 2 : 1;
-
-		switch(header.rate)
+		if(header.enhanced)
 		{
-		case TC.TC_AUDIO_RATE_11025: header.sampleRate = 11025; break;
-		case TC.TC_AUDIO_RATE_22050: header.sampleRate = 22050; break;
-		case TC.TC_AUDIO_RATE_44100: header.sampleRate = 44100; break;
-
-		case TC.TC_AUDIO_RATE_5500:
-			if((TC.TC_AUDIO_CODEC_G711_MU_LAW == header.codec) || (TC.TC_AUDIO_CODEC_G711_A_LAW == header.codec))
-				header.sampleRate = 8000;
-			else
-				header.sampleRate = 5500;
-			break;
-		}
-
-		cursor++;
-
-		if(TC.TC_AUDIO_CODEC_AAC == header.codec)
-		{
-			if(cursor >= limit)
+			if(limit - cursor < 5)
 				return;
 
-			header.isAAC = true;
-			header.aacPacketType = message[cursor];
+			header.codec = (message[cursor + 1] * 16777216) + (message[cursor + 2] * 65536) + (message[cursor + 3] * 256) + message[cursor + 4];
+			header.enhancedPacketType = message[cursor] & TC.TC_AUDIO_ENH_PACKETTYPE_MASK;
+			if(header.enhancedPacketType == TC.TC_AUDIO_ENH_PACKETTYPE_MULTITRACK)
+				return; // multitrack not supported
+
+			cursor += 5;
+
+			header.isConfiguration = header.enhancedPacketType == TC.TC_AUDIO_ENH_PACKETTYPE_SEQUENCE_START;
+			header.isCodedFrame = header.enhancedPacketType == TC.TC_AUDIO_ENH_PACKETTYPE_CODED_FRAMES;
+		}
+		else
+		{
+			header.isConfiguration = false;
+			header.isCodedFrame = true;
+			header.rate = message[cursor] & TC.TC_AUDIO_RATE_MASK;
+			header.soundSize = message[cursor] & TC.TC_AUDIO_SOUNDSIZE_MASK;
+			header.sound = message[cursor] & TC.TC_SOUND_MASK;
+
+			header.numberOfChannels = (TC.TC_AUDIO_SOUND_STEREO == header.sound) ? 2 : 1;
+
+			switch(header.rate)
+			{
+			case TC.TC_AUDIO_RATE_11025: header.sampleRate = 11025; break;
+			case TC.TC_AUDIO_RATE_22050: header.sampleRate = 22050; break;
+			case TC.TC_AUDIO_RATE_44100: header.sampleRate = 44100; break;
+
+			case TC.TC_AUDIO_RATE_5500:
+				if((TC.TC_AUDIO_CODEC_G711_MU_LAW == header.codec) || (TC.TC_AUDIO_CODEC_G711_A_LAW == header.codec))
+					header.sampleRate = 8000;
+				else
+					header.sampleRate = 5500;
+				break;
+			}
+
 			cursor++;
 
-			if((TC.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == header.aacPacketType) && (cursor + 1 < limit))
+			if(TC.TC_AUDIO_CODEC_AAC == header.codec)
+			{
+				if(cursor >= limit)
+					return;
+
+				const aacPacketType = message[cursor];
+				cursor++;
+
+				if((TC.TC_AUDIO_AACPACKET_AUDIO_SPECIFIC_CONFIG == aacPacketType) && (cursor + 1 < limit))
+				{
+					header.isConfiguration = true;
+					header.isCodedFrame = false;
+				}
+			}
+		}
+
+		switch(header.codec)
+		{
+		case TC.TC_AUDIO_CODEC_AAC:
+		case TC.TC_AUDIO_ENH_CODEC_AAC:
+			if(header.isConfiguration)
 			{
 				const sampleRates = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, 0, 0, 0];
 				const sampleRateIndex = ((message[cursor] & 0x7) << 1) + ((message[cursor + 1] >> 7) & 0x1);
@@ -790,12 +826,10 @@ Stream.prototype._onAudioMessage = function(header, message) {
 				this._aacChannelCount = (7 == channelConfig) ? 8 : channelConfig;
 				this._aacSampleRate = sampleRates[sampleRateIndex];
 			}
-
 			header.sampleRate = this._aacSampleRate;
 			header.numberOfChannels = this._aacChannelCount;
+			break;
 		}
-		else
-			header.isAAC = false;
 
 		header.payloadOffset = cursor;
 	}
@@ -829,6 +863,7 @@ Stream.prototype._makeVideoCodecParameterString = function(header, message) {
 	switch(header.codec)
 	{
 	case TC.TC_VIDEO_CODEC_AVC:
+	case TC.TC_VIDEO_ENH_CODEC_AVC:
 		return "avc1.64081f";
 
 	case TC.TC_VIDEO_ENH_CODEC_HEVC:
