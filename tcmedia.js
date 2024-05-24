@@ -245,15 +245,7 @@ class com_zenomt_TCMediaDecoder {
 				break;
 			case com_zenomt_TCMessage.TC_AUDIO_ENH_CODEC_FLAC:
 				if(header.isConfiguration && payload.length)
-				{
-					const description = new Uint8Array(4 + payload.length);
-					description[0] = 0x66;
-					description[1] = 0x4c;
-					description[2] = 0x61;
-					description[3] = 0x43;
-					description.set(payload, 4);
-					config = { codec:"flac", description };
-				}
+					config = { codec:"flac", description:payload };
 				else
 					return;
 				break;
