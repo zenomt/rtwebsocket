@@ -770,6 +770,7 @@ Stream.prototype._onAudioMessage = function(header, message) {
 
 			header.isConfiguration = header.enhancedPacketType == TC.TC_AUDIO_ENH_PACKETTYPE_SEQUENCE_START;
 			header.isCodedFrame = header.enhancedPacketType == TC.TC_AUDIO_ENH_PACKETTYPE_CODED_FRAMES;
+			header.silence = header.enhancedPacketType == TC.TC_AUDIO_ENH_PACKETTYPE_SEQUENCE_END;
 		}
 		else
 		{
