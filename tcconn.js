@@ -356,7 +356,7 @@ Connection.prototype._onFlowSyncMessage = function(message, cursor, limit, flow)
 Connection.appFromTcUrl = function(tcUrl) {
 	const url = Connection.URIParse(tcUrl);
 	url.path = url.path || "";
-	return ("/" == url.path[0]) ? url.path.substr(1) : url.path;
+	return (("/" == url.path[0]) ? url.path.substr(1) : url.path) + url.queryPart;
 }
 
 // needed because builtin URL doesn't work correctly for rtmp/rtmps/rtmfp URIs in some browsers.
