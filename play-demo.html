@@ -38,7 +38,7 @@ function doPlay(mode) {
 		else
 		{
 			mediaDecoder.audioFrameSkipThresh = 20;
-			mediaDecoder.audioController.bufferTime = 0.0;
+			mediaDecoder.audioController.bufferTime = ("live-ish" == mode) ? 0.50 : 0.0;
 			mediaDecoder.audioController.resetMinimumBufferLength(16);
 
 			if(checkbox_tcserver.checked)
@@ -70,6 +70,7 @@ function onDisconnected(e) {
 	tcurl_override.disabled = false;
 	app_override.disabled = false;
 	button_play.disabled = true;
+	button_play_liveish.disabled = true;
 	button_play_vod.disabled = true;
 	button_closestream.disabled = true;
 
@@ -85,6 +86,7 @@ async function onConnected(info) {
 	mediaDecoder.audioController.onstatus = (e) => console.log("audioController.onstatus", e.detail, e);
 
 	button_play.disabled = false;
+	button_play_liveish.disabled = false;
 	button_play_vod.disabled = false;
 	button_closestream.disabled = false;
 }
@@ -106,8 +108,13 @@ function doConnect() {
 			app:app_override.value || undefined,
 			videoCodecs:(1 << com_zenomt_TCMessage.TC_VIDEO_CODEC_AVC),
 			audioCodecs:0xffff, // cheat and say all of them
-			fourCcList:["av01", "vp09", "hvc1"], // Enhanced RTMP
+			fourCcList:["av01", "vp09", "hvc1", "avc1", "Opus", ".mp3", "fLaC", "mp4a"], // Enhanced RTMP
+			capsEx: 0, // Enhanced RTMP, no reconnect, no multitrack
+			audioFourInfoMap: { "Opus": 1, ".mp3": 1, "fLaC": 1, "mp4a": 1 }, // Enhanced RTMP
+			videoFourInfoMap: { "av01": 1, "vp09": 1, "hvc1": 1, "avc1": 1 }, // Enhanced RTMP
 		}).then(onConnected).catch(onDisconnected);
+	connection._rtws.minOutstandingThresh = 16 * 1024;
+	connection._rtws.maxAdditionalDelay = 0.1;
 }
 
 function doDisconnect() {
@@ -178,6 +185,7 @@ function onLoaded() {
 		<td>
 			<input type="text" size="40" id="stream_name_override" title="stream name override" value=""/>
 			<button type="button" id="button_play" onclick="doPlay('live')">Play Live</button>
+			<button type="button" id="button_play_liveish" onclick="doPlay('live-ish')">Play Live-ish</button>
 			<button type="button" id="button_play_vod" onclick="doPlay('vod')">Play Buffered</button>
 			<button type="button" id="button_closestream" onclick="doCloseStream()">Close Stream</button>
 			<input type="checkbox" id="checkbox_tcserver" checked/><label for="checkbox_tcserver"><a href="https://github.com/zenomt/rtmfp-cpp/blob/main/test/tcserver.md">tcserver</a> extras</label>
