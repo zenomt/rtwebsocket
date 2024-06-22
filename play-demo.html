@@ -110,8 +110,8 @@ function doConnect() {
 			audioCodecs:0xffff, // cheat and say all of them
 			fourCcList:["av01", "vp09", "hvc1", "avc1", "Opus", ".mp3", "fLaC", "mp4a"], // Enhanced RTMP
 			capsEx: 0, // Enhanced RTMP, no reconnect, no multitrack
-			audioFourInfoMap: { "Opus": 1, ".mp3": 1, "fLaC": 1, "mp4a": 1 }, // Enhanced RTMP
-			videoFourInfoMap: { "av01": 1, "vp09": 1, "hvc1": 1, "avc1": 1 }, // Enhanced RTMP
+			audioFourCcInfoMap: { "Opus": 1, ".mp3": 1, "fLaC": 1, "mp4a": 1 }, // Enhanced RTMP
+			videoFourCcInfoMap: { "av01": 1, "vp09": 1, "hvc1": 1, "avc1": 1 }, // Enhanced RTMP
 		}).then(onConnected).catch(onDisconnected);
 	connection._rtws.minOutstandingThresh = 16 * 1024;
 	connection._rtws.maxAdditionalDelay = 0.1;
