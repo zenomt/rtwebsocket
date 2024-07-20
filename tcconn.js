@@ -876,6 +876,9 @@ Stream.prototype._makeVideoCodecParameterString = function(header, message) {
 		else
 			return; // TODO
 
+	case TC.TC_VIDEO_ENH_CODEC_VP8:
+		return "vp8";
+
 	case TC.TC_VIDEO_ENH_CODEC_VP9:
 		return this._vp9CodecStringFromConfigurationRecord(payload);
 	}
