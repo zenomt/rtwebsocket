@@ -362,8 +362,11 @@ class com_zenomt_TCMediaDecoder {
 
 				if(!this._sendingSilence)
 				{
-					this._resyncAudio().then(() => this.audioController.silence(thisFrameTime - this.audioController.bufferTime));
-					this._sendingSilence = true;
+					if((0 == this.audioController.bufferTime) || (this._videoFrames.length > 2))
+					{
+						this._resyncAudio().then(() => this.audioController.silence(thisFrameTime - this.audioController.bufferTime));
+						this._sendingSilence = true;
+					}
 				}
 				else
 				{
