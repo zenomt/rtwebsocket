@@ -145,6 +145,8 @@ function displayStats() {
 	ctx.fillText("Minimum: " + minBuffer.toFixed(3), 10, vcursor); vcursor += vstep;
 	ctx.fillText("Maximum: " + maxBuffer.toFixed(3), 10, vcursor); vcursor += vstep;
 	ctx.fillText("Jitter:  " + (maxBuffer - minBuffer).toFixed(3), 10, vcursor); vcursor += vstep;
+
+	mediaDecoder?.updateVideoFrame(); // in case animation isn't happening
 }
 
 function onLoaded() {

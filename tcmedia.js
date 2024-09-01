@@ -8,6 +8,7 @@ class com_zenomt_TCMediaDecoder {
 		this._videoFrames = [];
 		this._audioFrameCount = 0;
 		this.audioFrameSkipThresh = 12;
+		this.maxVideoBufferLength = 20;
 		this._lastAudioTimestamp = -Infinity;
 		this._animationFrameRequested = false;
 		this._lastAudioType = -1;
@@ -93,6 +94,42 @@ class com_zenomt_TCMediaDecoder {
 		ctx.drawImage(frame, dx, dy, dWidth, dHeight);
 	}
 
+	updateVideoFrame() {
+		if(0 == this._videoFrames.length)
+			return;
+
+		const now = this.audioController.currentTime;
+
+		var frame;
+		while(this._videoFrames.length)
+		{
+			const each = this._videoFrames[0];
+			if((each.timestamp / 1000000.0) <= now)
+			{
+				if(frame)
+					frame.close();
+
+				frame = each;
+				this._videoFrames.shift();
+			}
+			else
+				break;
+		}
+
+		if((!frame) && (!this.audioController.clockRunning))
+			frame = this._videoFrames.shift();
+
+		if(frame)
+		{
+			if(this.ondrawframe)
+			{
+				try { this.ondrawframe(frame); }
+				catch(e) { console.log("exception calling ondrawframe", this, frame, e); }
+			}
+			frame.close();
+		}
+	}
+
 	// ---
 
 	_makeVideoDecoder() {
@@ -137,11 +174,17 @@ class com_zenomt_TCMediaDecoder {
 			console.log("dropping " + this._videoFrames.length + " video frames because timestamps reset");
 			this._flushVideoFrames();
 		}
+		if((this._videoFrames.length > 100) && (output.timestamp - this._videoFrames[0].timestamp > this.maxVideoBufferLength * 1000000))
+		{
+			console.log("dropping " + this._videoFrames.length + " video frames because maxVideoBufferLength safety limit was exceeded");
+			this._flushVideoFrames();
+		}
+
 		this._videoFrames.push(output);
 
 		if(!this._animationFrameRequested)
 		{
-			requestAnimationFrame(this._displayVideoFrame.bind(this));
+			requestAnimationFrame(this._displayVideoAnimationFrame.bind(this));
 			this._animationFrameRequested = true;
 		}
 	}
@@ -159,45 +202,16 @@ class com_zenomt_TCMediaDecoder {
 			each.close();
 	}
 
-	_displayVideoFrame() {
+	_displayVideoAnimationFrame() {
 		if(0 == this._videoFrames.length)
 		{
 			this._animationFrameRequested = false;
 			return;
 		}
 
-		const now = this.audioController.currentTime;
+		this.updateVideoFrame();
 
-		var frame;
-		while(this._videoFrames.length)
-		{
-			const each = this._videoFrames[0];
-			if((each.timestamp / 1000000.0) <= now)
-			{
-				if(frame)
-					frame.close();
-
-				frame = each;
-				this._videoFrames.shift();
-			}
-			else
-				break;
-		}
-
-		if((!frame) && (!this.audioController.clockRunning))
-			frame = this._videoFrames.shift();
-
-		if(frame)
-		{
-			if(this.ondrawframe)
-			{
-				try { this.ondrawframe(frame); }
-				catch(e) { console.log("exception calling ondrawframe", this, frame, e); }
-			}
-			frame.close();
-		}
-
-		requestAnimationFrame(this._displayVideoFrame.bind(this));
+		requestAnimationFrame(this._displayVideoAnimationFrame.bind(this));
 	}
 
 	_onAudioMessage(header, message) {
