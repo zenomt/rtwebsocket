@@ -168,38 +168,40 @@ function onLoaded() {
 <title>Play Stream Demo</title>
 </head>
 
-<body onload="onLoaded()" style="display: grid; grid-template-rows: auto 1fr;">
+<body onload="onLoaded()">
 
-<div>
-	<h1>Play Stream Demo</h1>
-	<table cellpadding="3">
-	<tr> <td>Server</td><td><input type="text" size="100" id="server_uri" placeholder="websocket url" value="ws://localhost:8080/live#live" /> </td> </tr>
-	<tr> <td>Overrides</td> <td><input type="text" size="48" id="tcurl_override" title="tcUrl override" /> <input type="text" size="64" id="app_override" title="app override" /> </td> </tr>
-	<tr>
-		<td></td>
-		<td>
-			<button type="button" id="button_connect" onclick="doConnect()">Connect</button>
-			<button type="button" id="button_disconnect" onclick="doDisconnect()">Disconnect</button>
-		</td>
-	</tr>
-	<tr>
-		<td>Stream</td>
-		<td>
-			<input type="text" size="40" id="stream_name_override" title="stream name override" value=""/>
-			<button type="button" id="button_play" onclick="doPlay('live')">Play Live</button>
-			<button type="button" id="button_play_liveish" onclick="doPlay('live-ish')">Play Live-ish</button>
-			<button type="button" id="button_play_vod" onclick="doPlay('vod')">Play Buffered</button>
-			<button type="button" id="button_closestream" onclick="doCloseStream()">Close Stream</button>
-			<input type="checkbox" id="checkbox_tcserver" checked/><label for="checkbox_tcserver"><a href="https://github.com/zenomt/rtmfp-cpp/blob/main/test/tcserver.md">tcserver</a> extras</label>
-		</td>
-	</tr>
-	</table>
-	<hr/>
-</div>
+<div style="display: grid; grid-template-rows: auto 1fr; height: 100%;">
+	<div>
+		<h1>Play Stream Demo</h1>
+		<table cellpadding="3">
+		<tr> <td>Server</td><td><input type="text" size="100" id="server_uri" placeholder="websocket url" value="ws://localhost:8080/live#live" /> </td> </tr>
+		<tr> <td>Overrides</td> <td><input type="text" size="48" id="tcurl_override" title="tcUrl override" /> <input type="text" size="64" id="app_override" title="app override" /> </td> </tr>
+		<tr>
+			<td></td>
+			<td>
+				<button type="button" id="button_connect" onclick="doConnect()">Connect</button>
+				<button type="button" id="button_disconnect" onclick="doDisconnect()">Disconnect</button>
+			</td>
+		</tr>
+		<tr>
+			<td>Stream</td>
+			<td>
+				<input type="text" size="40" id="stream_name_override" title="stream name override" value=""/>
+				<button type="button" id="button_play" onclick="doPlay('live')">Play Live</button>
+				<button type="button" id="button_play_liveish" onclick="doPlay('live-ish')">Play Live-ish</button>
+				<button type="button" id="button_play_vod" onclick="doPlay('vod')">Play Buffered</button>
+				<button type="button" id="button_closestream" onclick="doCloseStream()">Close Stream</button>
+				<input type="checkbox" id="checkbox_tcserver" checked/><label for="checkbox_tcserver"><a href="https://github.com/zenomt/rtmfp-cpp/blob/main/test/tcserver.md">tcserver</a> extras</label>
+			</td>
+		</tr>
+		</table>
+		<hr/>
+	</div>
 
-<div style="width: 100%; overflow:hidden;">
-	<canvas id="stats" width="200px" height="105px" style="position: absolute; background-color: rgba(0,0,0,0.5); z-index:2"></canvas>
-	<canvas id="video" style="z-index:1"></canvas>
+	<div style="width: 100%; overflow:hidden;">
+		<canvas id="stats" width="200px" height="105px" style="position: absolute; background-color: rgba(0,0,0,0.5); z-index:2"></canvas>
+		<canvas id="video" style="z-index:1"></canvas>
+	</div>
 </div>
 
 </body>
