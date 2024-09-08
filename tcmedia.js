@@ -324,7 +324,7 @@ class com_zenomt_TCMediaDecoder {
 
 		if(header.isConfiguration)
 		{
-			var config = { codec: header.codecParameterString };
+			var config = { codec: header.codecParameterString, optimizeForLatency: true };
 
 			this._seenVideoKeyframe = false;
 
