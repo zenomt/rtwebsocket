@@ -16,6 +16,9 @@ registerProcessor('com_zenomt_AudioTapNodeProcessor', class extends AudioWorklet
 		const input = inputs[0];
 		const output = outputs[0];
 
+		if((!input.length) || (!output.length))
+			return;
+
 		if(0 == this._offset)
 			this._bufferTimestamp = currentTime;
 
