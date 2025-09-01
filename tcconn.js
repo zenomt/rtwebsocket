@@ -561,14 +561,14 @@ Stream.prototype._openFlowForType = function(messageType) {
 	if(!this.isOpen)
 		return;
 
-	var pri = RTWebSocket.PRI_IMMEDIATE;
+	var pri = RTWebSocket.prototype.PRI_IMMEDIATE;
 	var slot = "_dataSend";
 
 	switch(messageType)
 	{
 	case TC.TCMSG_VIDEO:
 		slot = "_videoSend";
-		pri = RTWebSocket.PRI_PRIORITY;
+		pri = RTWebSocket.prototype.PRI_PRIORITY;
 		break;
 
 	case TC.TCMSG_AUDIO:
