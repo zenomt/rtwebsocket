@@ -248,7 +248,7 @@ RTWebSocket.prototype._onAckWindowMessage = function(data) {
 	cursor += this.parseVLU(data, cursor, -1, ackWindow);
 
 	this._ackWindow = Math.max(ackWindow.value, this.minAckWindow);
-	this._recvAccumulator = 0;
+	this._ackIfNeeded();
 }
 
 RTWebSocket.prototype._onFlowOpenMessage = function(data) {
@@ -317,11 +317,7 @@ RTWebSocket.prototype._onDataMessage = function(data) {
 		throw new ReferenceError("RecvFlow (" + flowID.value + ") not found for message fragment");
 
 	this._recvAccumulator += data.length;
-	if(this._recvAccumulator >= this._ackWindow)
-	{
-		this._scheduleAckNow();
-		this._recvAccumulator = this._recvAccumulator % this._ackWindow;
-	}
+	this._ackIfNeeded();
 
 	recvFlow._onData(more, msgFragment, data.length);
 }
@@ -408,6 +404,14 @@ RTWebSocket.prototype._onFlowExceptionMessage = function(data) {
 	sendFlow._onExceptionMessage(reasonCode.value, description);
 }
 
+RTWebSocket.prototype._ackIfNeeded = function() {
+	if(this._recvAccumulator >= this._ackWindow)
+	{
+		this._scheduleAckNow();
+		this._recvAccumulator = this._recvAccumulator % this._ackWindow;
+	}
+}
+
 RTWebSocket.prototype._queueAck = function(recvFlow, immediate) {
 	if(this._ackFlows.indexOf(recvFlow) < 0)
 		this._ackFlows.push(recvFlow);
@@ -473,7 +477,7 @@ RTWebSocket.prototype._startRTT = function() {
 		this._rttPosition = this._flowBytesSent;
 
 		var ackWin = Math.max(this.minAckWindow, (this._flowBytesSent - this._flowBytesAcked) / 4);
-		ackWin = Math.min(ackWin, this.maxAckWindow);
+		ackWin = Math.min(ackWin, Math.min(this.maxAckWindow, this.minOutstandingThresh));
 
 		this._sendBytes([RTWebSocket.MSG_ACK_WINDOW].concat(this.makeVLU(ackWin)));
 	}
