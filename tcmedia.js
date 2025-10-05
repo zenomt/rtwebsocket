@@ -66,32 +66,13 @@ class com_zenomt_TCMediaDecoder {
 	}
 
 	static displayFrameOnCanvas(frame, canvas) {
-		const frameAspect = frame.displayWidth / frame.displayHeight;
-		const canvasAspect = canvas.width / canvas.height;
-
-		var dx, dy;
-		var dWidth, dHeight;
-
-		if(frameAspect >= canvasAspect) // frame is wider than canvas
-		{
-			const adjustFactor = frame.displayWidth / canvas.width;
-			dWidth = canvas.width;
-			dHeight = frame.displayHeight / adjustFactor;
-			dx = 0;
-			dy = (canvas.height - dHeight) / 2;
-		}
-		else
-		{
-			const adjustFactor = frame.displayHeight / canvas.height;
-			dHeight = canvas.height;
-			dWidth = frame.displayWidth / adjustFactor;
-			dx = (canvas.width - dWidth) / 2;
-			dy = 0;
-		}
+		if(frame.displayWidth != canvas.width)
+			canvas.width = frame.displayWidth;
+		if(frame.displayHeight != canvas.height)
+			canvas.height = frame.displayHeight;
 
 		const ctx = canvas.getContext("2d");
-		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.drawImage(frame, dx, dy, dWidth, dHeight);
+		ctx.drawImage(frame, 0, 0);
 	}
 
 	updateVideoFrame() {

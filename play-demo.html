@@ -14,11 +14,6 @@ var connection;
 var channelStream;
 var mediaDecoder;
 
-function onResize() {
-	video.width = Math.floor(video.parentElement.clientWidth);
-	video.height = Math.floor(video.parentElement.clientHeight);
-}
-
 function doPlay(mode) {
 	const streamName = stream_name_override.value || stream_name_override.placeholder;
 
@@ -150,9 +145,7 @@ function displayStats() {
 }
 
 function onLoaded() {
-	window.addEventListener("resize", onResize);
 	onDisconnected();
-	onResize();
 
 	server_uri.onchange = server_uri.oninput = tcurl_override.onchange = tcurl_override.oninput = populateOverrides;
 	populateOverrides();
@@ -198,9 +191,11 @@ function onLoaded() {
 		<hr/>
 	</div>
 
-	<div style="width: 100%; overflow:hidden;">
+	<div style="width: 100%; height: 100%; overflow:hidden;">
 		<canvas id="stats" width="200px" height="105px" style="position: absolute; background-color: rgba(0,0,0,0.5); z-index:2"></canvas>
-		<canvas id="video" style="z-index:1"></canvas>
+		<div style="width: 100%; height: 100%; display: flex; justify-content: center; align-items: center;">
+			<canvas id="video" style="z-index:1; width: 100%; height: 100%; object-fit: contain;"></canvas>
+		</div>
 	</div>
 </div>
 
